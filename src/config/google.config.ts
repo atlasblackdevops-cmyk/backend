@@ -1,0 +1,10 @@
+import { Configuration, Value } from "@itgorillaz/configify";
+import { IsNotEmpty, IsString } from "class-validator";
+
+@Configuration()
+export class GoogleConfig {
+  @Value("GOOGLE_CLIENT_ID")
+  @IsNotEmpty()
+  @IsString()
+  clientId: string;
+}

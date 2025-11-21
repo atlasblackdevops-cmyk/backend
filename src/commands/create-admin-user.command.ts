@@ -2,8 +2,8 @@ import { BadRequestException, Logger } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { Command, CommandRunner, Option } from "nest-commander";
 import { DataSource } from "typeorm";
+import { Role } from "../database/entities/role.entity";
 import { User } from "../database/entities/user.entity";
-import { UserRole } from "../enums/user.enum";
 import { BcryptService } from "../services/bcrypt.service";
 
 @Command({
@@ -27,10 +27,18 @@ export class CreateAdminUserCommand extends CommandRunner {
 
     if (user) throw new BadRequestException("Already signed up.");
 
+    const roleRepo = this.dataSource.getRepository(Role);
+    let role = await roleRepo.findOne({ where: { roleName: "SUPER_ADMIN" } });
+    if (!role) {
+      role = await roleRepo.save(roleRepo.create({ roleName: "SUPER_ADMIN" }));
+    }
+
     const u = this.dataSource.getRepository(User).create({
-      ...payload,
+      email: payload.email,
+      name: `${payload.firstName} ${payload.lastName}`.trim(),
       password: this.bcryptService.hashSync(payload.password),
-      role: UserRole.ADMIN,
+      role,
+      emailVerified: true,
     });
 
     const _user = await this.dataSource.getRepository(User).save(u);

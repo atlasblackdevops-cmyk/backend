@@ -1,53 +1,51 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
-  HttpStatus,
   Post,
-  UsePipes,
+  Req,
+  UseGuards,
 } from "@nestjs/common";
-import { ApiBody, ApiTags } from "@nestjs/swagger";
-import { User } from "../../database/entities/user.entity";
-import { Auth } from "../../decorators/auth.decorator";
-import { AuthSession, AuthUser } from "../../decorators/user.decorator";
-import { UserRole } from "../../enums/user.enum";
-import { ValidationPipe } from "../../pipes/validation.pipe";
-import { LoginDto, SignupDto } from "./auth.dto";
+import { AuthGuard } from "@nestjs/passport";
+import { ApiBearerAuth, ApiTags } from "@nestjs/swagger";
+import { FastifyRequest } from "fastify";
 import { AuthService } from "./auth.service";
+import { GoogleSignInDto } from "./dto/google-signin.dto";
+import { LoginDto } from "./dto/login.dto";
+import { RefreshTokenDto } from "./dto/refresh-token.dto";
+import { RegisterDto } from "./dto/register.dto";
 
-@Controller()
-@UsePipes(new ValidationPipe({ whitelist: true }))
 @ApiTags("Auth")
+@Controller()
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post("signup")
-  @HttpCode(HttpStatus.OK)
-  async signup(@Body() body: SignupDto) {
-    return {
-      data: await this.authService.signup(body),
-      message: "Signup successfull",
-    };
+  @Post("register")
+  register(@Body() dto: RegisterDto) {
+    return this.authService.register(dto);
   }
 
   @Post("login")
-  @ApiBody({ type: LoginDto })
-  @HttpCode(HttpStatus.OK)
-  async login(@Body() body: LoginDto) {
-    return {
-      data: await this.authService.login(body),
-      message: "Login successfull",
-    };
+  @HttpCode(200)
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
   }
 
-  @Post("logout")
-  @HttpCode(HttpStatus.OK)
-  // @Auth()
-  @Auth([UserRole.USER, UserRole.ADMIN])
-  async logout(@AuthUser() user: User, @AuthSession() session: string) {
-    return {
-      data: await this.authService.logout(user, session),
-      message: "Logout successfull",
-    };
+  @Post("refresh")
+  refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Post("google")
+  google(@Body() dto: GoogleSignInDto) {
+    return this.authService.googleSignIn(dto.idToken);
+  }
+
+  @Get("me")
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard("jwt"))
+  me(@Req() req: FastifyRequest) {
+    return this.authService.me(req.user as any);
   }
 }

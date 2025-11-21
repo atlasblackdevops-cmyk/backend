@@ -22,7 +22,8 @@
     "migration:run": "typeorm migration:run -d ./dist/config/typeorm.js",
     "migration:run:local": "npm run build && typeorm migration:run -d ./dist/config/typeorm.js",
     "migration:generate": "typeorm migration:generate -d ./src/config/typeorm.ts ./src/database/migrations",
-    "migration:revert": "typeorm migration:revert -d ./dist/config/typeorm.js"
+    "migration:revert": "typeorm migration:revert -d ./dist/config/typeorm.js",
+    "seed:superadmin": "node dist/commands/index.js seed-super-admin"
   },
   "dependencies": {
     "@fastify/compress": "^8.1.0",
@@ -43,6 +44,7 @@
     "class-validator": "^0.14.2",
     "fastify": "^5.4.0",
     "nest-commander": "^3.18.0",
+    "google-auth-library": "^9.0.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",

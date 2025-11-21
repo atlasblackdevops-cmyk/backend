@@ -1,46 +1,84 @@
-import { Exclude } from "class-transformer";
 import {
   Column,
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
-import { UserRole } from "../../enums/user.enum";
-import { Session } from "./session.entity";
+import { Farm } from "./farm.entity";
+import { Role } from "./role.entity";
 
-@Entity()
+@Entity({ name: "users" })
 export class User {
   @PrimaryGeneratedColumn("uuid")
   id: string;
 
-  @Column({ type: "character varying", unique: true })
+  @Index({ unique: true })
+  @Column({ type: "varchar" })
   email: string;
 
-  @Exclude()
-  @Column({ type: "character varying", select: false })
+  @Column({ type: "varchar" })
   password: string;
 
-  @Column({ type: "character varying" })
-  firstName: string;
+  @ManyToOne(() => Farm, { nullable: true })
+  @JoinColumn({ name: "current_farm" })
+  currentFarm: Farm | null;
 
-  @Column({ type: "character varying" })
-  lastName: string;
+  @ManyToOne(() => Role, (role) => role.users, { nullable: false })
+  @JoinColumn({ name: "role_id" })
+  role: Role;
 
-  @Column({ type: "enum", enum: UserRole, default: UserRole.USER })
-  role: UserRole;
+  @Column({ name: "referral_code", type: "varchar", nullable: true })
+  referralCode: string | null;
 
-  @DeleteDateColumn()
-  deletedAt: Date;
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: "referred_by" })
+  referredBy: User | null;
 
-  @CreateDateColumn()
-  createdAt: Date;
+  @Column({ name: "email_verified", type: "boolean", default: false })
+  emailVerified: boolean;
 
-  @UpdateDateColumn()
-  updatedAt: Date;
+  @Column({ name: "is_invited", type: "boolean", default: false })
+  isInvited: boolean;
 
-  @OneToMany(() => Session, (session) => session.user)
-  sessions: Session[];
+  @Column({ type: "varchar", nullable: true })
+  mobile: string | null;
+
+  @Column({ type: "varchar", nullable: true })
+  name: string | null;
+
+  @Column({ name: "profile_picture", type: "varchar", nullable: true })
+  profilePicture: string | null;
+
+  @Column({ name: "google_sub", type: "varchar", nullable: true, unique: true })
+  googleSub: string | null;
+
+  @CreateDateColumn({
+    name: "created_at",
+    type: "timestamp with time zone",
+    nullable: true,
+  })
+  createdAt: Date | null;
+
+  @UpdateDateColumn({
+    name: "updated_at",
+    type: "timestamp with time zone",
+    nullable: true,
+  })
+  updatedAt: Date | null;
+
+  @DeleteDateColumn({
+    name: "deleted_at",
+    type: "timestamp with time zone",
+    nullable: true,
+  })
+  deletedAt: Date | null;
+
+  @OneToMany(() => Farm, (farm) => farm.owner)
+  farms: Farm[];
 }

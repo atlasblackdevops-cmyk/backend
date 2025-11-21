@@ -1,7 +1,11 @@
 import compression from "@fastify/compress";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
-import { VersioningType } from "@nestjs/common";
+import {
+  BadRequestException,
+  ValidationPipe,
+  VersioningType,
+} from "@nestjs/common";
 import { HttpAdapterHost, NestFactory } from "@nestjs/core";
 import {
   FastifyAdapter,
@@ -33,13 +37,37 @@ async function bootstrap() {
   await app.register(helmet, { global: true });
 
   // Enable Cors
-  await app.register(cors, { origin: true });
+  await app.register(cors, {
+    origin: process.env.CORS_ORIGIN ?? true,
+    credentials: true,
+  });
 
   // Add Compression
   await app.register(compression, { threshold: 512 });
 
   // Global Response Interceptor
   app.useGlobalInterceptors(new ApiResponseInterceptor());
+
+  // Global Validation
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: { enableImplicitConversion: false },
+      validationError: { target: false, value: false },
+      exceptionFactory: (validationErrors = []) => {
+        const errors = validationErrors.map((e) => ({
+          field: e.property,
+          constraints: e.constraints,
+        }));
+        return new BadRequestException({
+          message: "Validation failed",
+          errors,
+        });
+      },
+    }),
+  );
 
   // Error Handler
   app.useGlobalFilters(new HttpExceptionFilter(app.get(HttpAdapterHost)));

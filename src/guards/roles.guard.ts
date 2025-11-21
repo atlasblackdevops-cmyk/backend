@@ -16,7 +16,12 @@ export class RolesGuard implements CanActivate {
         context.getHandler(),
       );
       if (!roles || roles.length === 0) return true;
-      return roles.includes(user.role);
+      const roleValue =
+        typeof (user as any).role === "string"
+          ? ((user as any).role as string)
+          : ((user as any).role?.roleName as string | undefined);
+      if (!roleValue) return false;
+      return roles.includes(roleValue as UserRole);
     }
 
     const allowed = this.reflector.get<boolean>(
