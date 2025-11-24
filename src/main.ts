@@ -1,11 +1,7 @@
 import compression from "@fastify/compress";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
-import {
-  BadRequestException,
-  ValidationPipe,
-  VersioningType,
-} from "@nestjs/common";
+import { VersioningType } from "@nestjs/common";
 import { HttpAdapterHost, NestFactory } from "@nestjs/core";
 import {
   FastifyAdapter,
@@ -17,6 +13,7 @@ import { AppModule } from "./app.module";
 import { AppConfig } from "./config/app.config";
 import { HttpExceptionFilter } from "./exceptions/http.exception";
 import { ApiResponseInterceptor } from "./interceptors/api-response.interceptor";
+import { ValidationPipe as AppValidationPipe } from "./pipes/validation.pipe";
 
 async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
@@ -50,22 +47,12 @@ async function bootstrap() {
 
   // Global Validation
   app.useGlobalPipes(
-    new ValidationPipe({
+    new AppValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: false },
       validationError: { target: false, value: false },
-      exceptionFactory: (validationErrors = []) => {
-        const errors = validationErrors.map((e) => ({
-          field: e.property,
-          constraints: e.constraints,
-        }));
-        return new BadRequestException({
-          message: "Validation failed",
-          errors,
-        });
-      },
     }),
   );
 

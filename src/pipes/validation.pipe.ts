@@ -276,7 +276,12 @@ export class ValidationPipe implements PipeTransform<any> {
   protected flattenValidationErrors(validationErrors: ValidationError[]) {
     const meta = validationErrors.reduce((list, err) => {
       if (err.constraints) {
-        list[err.property] = Object.values(err.constraints).pop();
+        const constraintKeys = Object.keys(err.constraints);
+        if (constraintKeys.includes("whitelistValidation")) {
+          list[err.property] = "Unknown field";
+        } else {
+          list[err.property] = Object.values(err.constraints).pop();
+        }
       }
       if (err.children.length) {
         list[err.property] = this.childError(err.children);
@@ -290,7 +295,12 @@ export class ValidationPipe implements PipeTransform<any> {
   private childError(errors: ValidationError[]): any {
     return errors.reduce((list, err) => {
       if (err.constraints) {
-        list[err.property] = Object.values(err.constraints).pop();
+        const constraintKeys = Object.keys(err.constraints);
+        if (constraintKeys.includes("whitelistValidation")) {
+          list[err.property] = "Unknown field";
+        } else {
+          list[err.property] = Object.values(err.constraints).pop();
+        }
       }
       if (err.children?.length) {
         list[err.property] = this.childError(err.children);

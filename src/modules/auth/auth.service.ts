@@ -198,6 +198,21 @@ export class AuthService {
     };
   }
 
+  async logout(userFromReq: { id: string }) {
+    // Verify user exists
+    const user = await this.users.findOne({
+      where: { id: userFromReq.id },
+    });
+    if (!user) throw new NotFoundException("Account not found.");
+
+    // In a stateless JWT system, logout is primarily handled client-side
+    // by removing tokens from storage. This endpoint confirms the logout.
+    // For enhanced security, you could implement token blacklisting here.
+    return {
+      message: "Logged out successfully",
+    };
+  }
+
   async me(userFromReq: { id: string }) {
     const user = await this.users.findOne({
       where: { id: userFromReq.id },

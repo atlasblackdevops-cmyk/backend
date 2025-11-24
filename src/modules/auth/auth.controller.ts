@@ -17,7 +17,7 @@ import { RefreshTokenDto } from "./dto/refresh-token.dto";
 import { RegisterDto } from "./dto/register.dto";
 
 @ApiTags("Auth")
-@Controller()
+@Controller("auth")
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -40,6 +40,14 @@ export class AuthController {
   @Post("google")
   google(@Body() dto: GoogleSignInDto) {
     return this.authService.googleSignIn(dto.idToken);
+  }
+
+  @Post("logout")
+  @HttpCode(200)
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard("jwt"))
+  logout(@Req() req: FastifyRequest) {
+    return this.authService.logout(req.user as any);
   }
 
   @Get("me")
