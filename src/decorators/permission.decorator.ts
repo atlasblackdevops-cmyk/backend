@@ -16,4 +16,3 @@ export function RequirePermission(options: PermissionOptions) {
     UseGuards(JwtAuthGuard, PermissionGuard),
   );
 }
-

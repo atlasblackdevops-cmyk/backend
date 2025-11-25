@@ -17,5 +17,3 @@ export class AddIsActiveToFarms1700000000003 implements MigrationInterface {
     `);
   }
 }
-
-

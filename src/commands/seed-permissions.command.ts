@@ -2,8 +2,8 @@ import { Logger } from "@nestjs/common";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { Command, CommandRunner } from "nest-commander";
 import { DataSource } from "typeorm";
-import { PermissionAction, PermissionModule } from "../enums/permission.enum";
 import { Permission } from "../database/entities/permission.entity";
+import { PermissionAction, PermissionModule } from "../enums/permission.enum";
 
 @Command({
   name: "seed-permissions",
@@ -12,9 +12,7 @@ import { Permission } from "../database/entities/permission.entity";
 export class SeedPermissionsCommand extends CommandRunner {
   private readonly logger = new Logger(SeedPermissionsCommand.name);
 
-  constructor(
-    @InjectDataSource() private readonly dataSource: DataSource,
-  ) {
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {
     super();
   }
 
@@ -69,4 +67,3 @@ export class SeedPermissionsCommand extends CommandRunner {
     return `${actionDescriptions[action]} in ${module} module`;
   }
 }
-

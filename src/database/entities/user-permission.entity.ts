@@ -11,7 +11,11 @@ import { Permission } from "./permission.entity";
 import { User } from "./user.entity";
 
 @Entity({ name: "user_permissions" })
-@Unique("uq_user_permission_user_farm_permission", ["user", "farm", "permission"])
+@Unique("uq_user_permission_user_farm_permission", [
+  "user",
+  "farm",
+  "permission",
+])
 export class UserPermission {
   @PrimaryGeneratedColumn("uuid")
   id: string;
@@ -35,4 +39,3 @@ export class UserPermission {
   })
   createdAt: Date | null;
 }
-

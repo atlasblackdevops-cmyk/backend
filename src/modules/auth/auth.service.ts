@@ -51,16 +51,18 @@ export class AuthService {
       role,
     });
     const saved = await this.users.save(user);
-    
+
     // Reload user with currentFarm relation
     const userWithRelations = await this.users.findOne({
       where: { id: saved.id },
       relations: { role: true, currentFarm: true },
     });
-    if (!userWithRelations) throw new NotFoundException("User not found after creation.");
-    
+    if (!userWithRelations)
+      throw new NotFoundException("User not found after creation.");
+
     const tokens = await this.issueTokens(userWithRelations);
-    const userWithFarmCheck = await this.enrichUserWithFarmCheck(userWithRelations);
+    const userWithFarmCheck =
+      await this.enrichUserWithFarmCheck(userWithRelations);
     return {
       message: "Registered successfully",
       data: {
@@ -130,7 +132,8 @@ export class AuthService {
           where: { id: user.id },
           relations: { role: true, currentFarm: true },
         });
-        if (!user) throw new NotFoundException("User not found after creation.");
+        if (!user)
+          throw new NotFoundException("User not found after creation.");
       } catch (e: any) {
         // If another user with same email already exists, link googleSub and continue
         if (e?.code === "23505") {
@@ -151,7 +154,8 @@ export class AuthService {
             where: { id: user.id },
             relations: { role: true, currentFarm: true },
           });
-          if (!user) throw new NotFoundException("User not found after update.");
+          if (!user)
+            throw new NotFoundException("User not found after update.");
         } else {
           throw e;
         }
@@ -163,7 +167,7 @@ export class AuthService {
       user.emailVerified = user.emailVerified || emailVerified;
       if (!user.googleSub && sub) user.googleSub = sub;
       await this.users.save(user);
-      
+
       // Reload with currentFarm relation
       user = await this.users.findOne({
         where: { id: user.id },

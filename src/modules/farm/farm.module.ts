@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { Farm } from "../../database/entities/farm.entity";
 import { FarmMember } from "../../database/entities/farm-member.entity";
+import { Farm } from "../../database/entities/farm.entity";
 import { Role } from "../../database/entities/role.entity";
 import { User } from "../../database/entities/user.entity";
 import { FarmController } from "./farm.controller";
@@ -14,5 +14,3 @@ import { FarmService } from "./farm.service";
   exports: [FarmService],
 })
 export class FarmModule {}
-
-

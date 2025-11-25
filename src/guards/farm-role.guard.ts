@@ -9,9 +9,9 @@ import { Reflector } from "@nestjs/core";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { FastifyRequest } from "fastify";
 import { DataSource } from "typeorm";
-import { FarmRole, UserRole } from "../enums/user.enum";
 import { FarmMember } from "../database/entities/farm-member.entity";
 import { Farm } from "../database/entities/farm.entity";
+import { FarmRole, UserRole } from "../enums/user.enum";
 
 @Injectable()
 export class FarmRoleGuard implements CanActivate {
@@ -50,10 +50,9 @@ export class FarmRoleGuard implements CanActivate {
     }
 
     // Get farm ID from request
-    const farmIdParam = this.reflector.get<string>(
-      "farmIdParam",
-      context.getHandler(),
-    ) || "farmId";
+    const farmIdParam =
+      this.reflector.get<string>("farmIdParam", context.getHandler()) ||
+      "farmId";
 
     const farmId =
       request.params?.[farmIdParam] ||
@@ -107,4 +106,3 @@ export class FarmRoleGuard implements CanActivate {
     return true;
   }
 }
-

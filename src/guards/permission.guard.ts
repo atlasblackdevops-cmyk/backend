@@ -9,11 +9,11 @@ import { Reflector } from "@nestjs/core";
 import { InjectDataSource } from "@nestjs/typeorm";
 import { FastifyRequest } from "fastify";
 import { DataSource } from "typeorm";
-import { UserRole } from "../enums/user.enum";
 import { FarmMember } from "../database/entities/farm-member.entity";
-import { UserPermission } from "../database/entities/user-permission.entity";
-import { Permission } from "../database/entities/permission.entity";
 import { Farm } from "../database/entities/farm.entity";
+import { Permission } from "../database/entities/permission.entity";
+import { UserPermission } from "../database/entities/user-permission.entity";
+import { UserRole } from "../enums/user.enum";
 
 interface PermissionMetadata {
   module: string;
@@ -132,4 +132,3 @@ export class PermissionGuard implements CanActivate {
     return true;
   }
 }
-

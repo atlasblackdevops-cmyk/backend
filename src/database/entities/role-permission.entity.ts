@@ -30,4 +30,3 @@ export class RolePermission {
   })
   createdAt: Date | null;
 }
-

@@ -14,4 +14,3 @@ export enum PermissionAction {
   DELETE = "DELETE",
   LISTING = "LISTING",
 }
-

@@ -34,7 +34,10 @@ export class Permission {
   })
   createdAt: Date | null;
 
-  @OneToMany(() => UserPermission, (userPermission) => userPermission.permission)
+  @OneToMany(
+    () => UserPermission,
+    (userPermission) => userPermission.permission,
+  )
   userPermissions: UserPermission[];
 
   @OneToMany(
@@ -43,4 +46,3 @@ export class Permission {
   )
   rolePermissions: RolePermission[];
 }
-

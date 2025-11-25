@@ -7,4 +7,3 @@ export class SwitchFarmDto {
   @IsNotEmpty()
   farmId: string;
 }
-

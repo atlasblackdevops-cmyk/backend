@@ -32,5 +32,3 @@ export class CreateFarmDto {
   @MaxLength(500)
   address?: string;
 }
-
-

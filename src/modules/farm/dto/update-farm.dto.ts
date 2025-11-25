@@ -7,5 +7,3 @@ export class UpdateFarmDto extends PartialType(CreateFarmDto) {
   @IsBoolean()
   isActive?: boolean;
 }
-
-

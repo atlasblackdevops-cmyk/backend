@@ -4,10 +4,7 @@ import { FarmRole } from "../enums/user.enum";
 import { FarmRoleGuard } from "../guards/farm-role.guard";
 import { JwtAuthGuard } from "../modules/auth/jwt-auth.guard";
 
-export function RequireFarmRole(
-  roles: FarmRole[],
-  farmIdParam?: string,
-) {
+export function RequireFarmRole(roles: FarmRole[], farmIdParam?: string) {
   return applyDecorators(
     ApiBearerAuth(),
     SetMetadata("farmRoles", roles),
@@ -15,4 +12,3 @@ export function RequireFarmRole(
     UseGuards(JwtAuthGuard, FarmRoleGuard),
   );
 }
-

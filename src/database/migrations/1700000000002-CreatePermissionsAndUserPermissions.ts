@@ -79,4 +79,3 @@ export class CreatePermissionsAndUserPermissions1700000000002
     `);
   }
 }
-
