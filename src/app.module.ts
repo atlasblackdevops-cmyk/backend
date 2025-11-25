@@ -4,6 +4,7 @@ import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { DatabaseModule } from "./database/database.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { FarmModule } from "./modules/farm/farm.module";
 import { GlobalModule } from "./modules/global/global.module";
 
 @Module({
@@ -11,6 +12,7 @@ import { GlobalModule } from "./modules/global/global.module";
     ConfigifyModule.forRootAsync(),
     DatabaseModule,
     AuthModule,
+    FarmModule,
     GlobalModule,
   ],
   controllers: [AppController],

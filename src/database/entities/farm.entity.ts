@@ -5,9 +5,11 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
+import { UserPermission } from "./user-permission.entity";
 import { User } from "./user.entity";
 
 @Entity({ name: "farms" })
@@ -17,6 +19,14 @@ export class Farm {
 
   @Column({ name: "farm_name", type: "varchar" })
   farmName: string;
+
+  @Column({
+    name: "farm_code",
+    type: "varchar",
+    length: 12,
+    unique: true,
+  })
+  farmCode: string;
 
   @ManyToOne(() => User, (user) => user.farms, { nullable: false })
   @JoinColumn({ name: "owner_id" })
@@ -46,6 +56,9 @@ export class Farm {
   @Column({ name: "area_unit", type: "varchar", nullable: true })
   areaUnit: string | null;
 
+  @Column({ name: "is_active", type: "boolean", default: true })
+  isActive: boolean;
+
   @CreateDateColumn({
     name: "created_at",
     type: "timestamp with time zone",
@@ -66,4 +79,7 @@ export class Farm {
     nullable: true,
   })
   deletedAt: Date | null;
+
+  @OneToMany(() => UserPermission, (userPermission) => userPermission.farm)
+  userPermissions: UserPermission[];
 }

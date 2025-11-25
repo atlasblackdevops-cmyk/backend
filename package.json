@@ -23,7 +23,8 @@
     "migration:run:local": "npm run build && typeorm migration:run -d ./dist/config/typeorm.js",
     "migration:generate": "typeorm migration:generate -d ./src/config/typeorm.ts ./src/database/migrations",
     "migration:revert": "typeorm migration:revert -d ./dist/config/typeorm.js",
-    "seed:superadmin": "node dist/commands/index.js seed-super-admin"
+    "seed:superadmin": "node dist/commands/index.js seed-super-admin",
+    "seed:permissions": "node dist/commands/index.js seed-permissions"
   },
   "dependencies": {
     "@fastify/compress": "^8.1.0",

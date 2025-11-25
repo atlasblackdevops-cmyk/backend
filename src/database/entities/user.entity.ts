@@ -12,6 +12,7 @@ import {
 } from "typeorm";
 import { Farm } from "./farm.entity";
 import { Role } from "./role.entity";
+import { UserPermission } from "./user-permission.entity";
 
 @Entity({ name: "users" })
 export class User {
@@ -81,4 +82,7 @@ export class User {
 
   @OneToMany(() => Farm, (farm) => farm.owner)
   farms: Farm[];
+
+  @OneToMany(() => UserPermission, (userPermission) => userPermission.user)
+  userPermissions: UserPermission[];
 }

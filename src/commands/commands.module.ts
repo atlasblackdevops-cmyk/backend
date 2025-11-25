@@ -4,6 +4,7 @@ import { CommandRunnerModule } from "nest-commander";
 import { DatabaseModule } from "../database/database.module";
 import { GlobalModule } from "../modules/global/global.module";
 import { CreateAdminUserCommand } from "./create-admin-user.command";
+import { SeedPermissionsCommand } from "./seed-permissions.command";
 import { SeedSuperAdminCommand } from "./seed-super-admin.command";
 
 @Module({
@@ -14,6 +15,10 @@ import { SeedSuperAdminCommand } from "./seed-super-admin.command";
     GlobalModule,
   ],
   controllers: [],
-  providers: [CreateAdminUserCommand, SeedSuperAdminCommand],
+  providers: [
+    CreateAdminUserCommand,
+    SeedSuperAdminCommand,
+    SeedPermissionsCommand,
+  ],
 })
 export class CommandsModule {}

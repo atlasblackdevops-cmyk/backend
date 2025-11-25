@@ -26,12 +26,20 @@ export class ApiResponseInterceptor<T>
     const response = _context.getResponse<FastifyReply>();
 
     return next.handle().pipe(
-      map((data: { data: any | undefined; message: string | undefined }) => ({
-        success: true,
-        statusCode: response.statusCode,
-        message: data?.message,
-        data: data?.data,
-      })),
+      map((payload: any) => {
+        const message: string | undefined = payload?.message;
+        const data =
+          payload && Object.prototype.hasOwnProperty.call(payload, "data")
+            ? payload.data
+            : payload;
+
+        return {
+          success: true,
+          statusCode: response.statusCode,
+          message,
+          data,
+        };
+      }),
     );
   }
 }

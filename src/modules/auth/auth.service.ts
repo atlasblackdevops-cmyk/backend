@@ -7,6 +7,7 @@ import { JwtService } from "@nestjs/jwt";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { AuthConfig } from "../../config/auth.config";
+import { Farm } from "../../database/entities/farm.entity";
 import { Role } from "../../database/entities/role.entity";
 import { User } from "../../database/entities/user.entity";
 import { BcryptService } from "../../services/bcrypt.service";
@@ -25,6 +26,7 @@ export class AuthService {
   constructor(
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Role) private readonly roles: Repository<Role>,
+    @InjectRepository(Farm) private readonly farms: Repository<Farm>,
     private readonly bcrypt: BcryptService,
     private readonly jwt: JwtService,
     private readonly authConfig: AuthConfig,
@@ -35,9 +37,9 @@ export class AuthService {
     const existing = await this.users.findOne({ where: { email: dto.email } });
     if (existing) throw new BadRequestException("Already signed up.");
 
-    let role = await this.roles.findOne({ where: { roleName: "USER" } });
+    let role = await this.roles.findOne({ where: { roleName: "OWNER" } });
     if (!role) {
-      role = await this.roles.save(this.roles.create({ roleName: "USER" }));
+      role = await this.roles.save(this.roles.create({ roleName: "OWNER" }));
     }
 
     const user = this.users.create({
@@ -49,11 +51,20 @@ export class AuthService {
       role,
     });
     const saved = await this.users.save(user);
-    const tokens = await this.issueTokens(saved);
+    
+    // Reload user with currentFarm relation
+    const userWithRelations = await this.users.findOne({
+      where: { id: saved.id },
+      relations: { role: true, currentFarm: true },
+    });
+    if (!userWithRelations) throw new NotFoundException("User not found after creation.");
+    
+    const tokens = await this.issueTokens(userWithRelations);
+    const userWithFarmCheck = await this.enrichUserWithFarmCheck(userWithRelations);
     return {
       message: "Registered successfully",
       data: {
-        user: this.publicUser(saved),
+        user: userWithFarmCheck,
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       },
@@ -78,14 +89,14 @@ export class AuthService {
     if (sub) {
       user = await this.users.findOne({
         where: { googleSub: sub },
-        relations: { role: true },
+        relations: { role: true, currentFarm: true },
       });
     }
     // Fallback to email
     if (!user) {
       user = await this.users.findOne({
         where: { email },
-        relations: { role: true },
+        relations: { role: true, currentFarm: true },
       });
     }
 
@@ -114,6 +125,12 @@ export class AuthService {
       try {
         user = await this.users.save(toCreate);
         console.log("===========user 2============", user);
+        // Reload with currentFarm relation
+        user = await this.users.findOne({
+          where: { id: user.id },
+          relations: { role: true, currentFarm: true },
+        });
+        if (!user) throw new NotFoundException("User not found after creation.");
       } catch (e: any) {
         // If another user with same email already exists, link googleSub and continue
         if (e?.code === "23505") {
@@ -129,6 +146,12 @@ export class AuthService {
             user.emailVerified = user.emailVerified || emailVerified;
             await this.users.save(user);
           }
+          // Reload with currentFarm relation
+          user = await this.users.findOne({
+            where: { id: user.id },
+            relations: { role: true, currentFarm: true },
+          });
+          if (!user) throw new NotFoundException("User not found after update.");
         } else {
           throw e;
         }
@@ -140,14 +163,22 @@ export class AuthService {
       user.emailVerified = user.emailVerified || emailVerified;
       if (!user.googleSub && sub) user.googleSub = sub;
       await this.users.save(user);
+      
+      // Reload with currentFarm relation
+      user = await this.users.findOne({
+        where: { id: user.id },
+        relations: { role: true, currentFarm: true },
+      });
+      if (!user) throw new NotFoundException("User not found after update.");
     }
 
     const tokens = await this.issueTokens(user);
     console.log("===========tokens============", tokens);
+    const userWithFarmCheck = await this.enrichUserWithFarmCheck(user);
     return {
       message: "Logged in successfully",
       data: {
-        user: this.publicUser(user),
+        user: userWithFarmCheck,
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       },
@@ -157,16 +188,17 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.users.findOne({
       where: { email: dto.email },
-      relations: { role: true },
+      relations: { role: true, currentFarm: true },
     });
     if (!user) throw new NotFoundException("Account not found.");
 
     this.bcrypt.compareSync(dto.password, user.password);
     const tokens = await this.issueTokens(user);
+    const userWithFarmCheck = await this.enrichUserWithFarmCheck(user);
     return {
       message: "Logged in successfully",
       data: {
-        user: this.publicUser(user),
+        user: userWithFarmCheck,
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       },
@@ -184,14 +216,15 @@ export class AuthService {
     }
     const user = await this.users.findOne({
       where: { id: payload.sub },
-      relations: { role: true },
+      relations: { role: true, currentFarm: true },
     });
     if (!user) throw new NotFoundException("Account not found.");
     const tokens = await this.issueTokens(user);
+    const userWithFarmCheck = await this.enrichUserWithFarmCheck(user);
     return {
       message: "Token refreshed",
       data: {
-        user: this.publicUser(user),
+        user: userWithFarmCheck,
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
       },
@@ -219,8 +252,9 @@ export class AuthService {
       relations: { role: true, currentFarm: true },
     });
     if (!user) throw new NotFoundException("Account not found.");
+    const userWithFarmCheck = await this.enrichUserWithFarmCheck(user);
     return {
-      data: this.publicUser(user),
+      data: userWithFarmCheck,
     };
   }
 
@@ -246,6 +280,42 @@ export class AuthService {
       expiresIn: this.authConfig.refreshExpires as any,
     });
     return { accessToken, refreshToken };
+  }
+
+  /**
+   * Check if user with OWNER role has at least one farm
+   * Returns true if user requires farm creation (OWNER role but no farms)
+   */
+  private async checkRequiresFarmCreation(user: User): Promise<boolean> {
+    // Ensure role is loaded
+    const roleName =
+      (user.role && user.role.roleName) ||
+      (await this.roles.findOneBy({ id: (user as any).roleId }))?.roleName ||
+      "";
+
+    // Only check for OWNER role
+    if (roleName !== "OWNER") {
+      return false;
+    }
+
+    // Count farms owned by this user
+    const farmCount = await this.farms.count({
+      where: { owner: { id: user.id } },
+    });
+
+    // If OWNER has no farms, they need to create one
+    return farmCount === 0;
+  }
+
+  /**
+   * Enrich user object with farm requirement check
+   */
+  private async enrichUserWithFarmCheck(user: User) {
+    const requiresFarmCreation = await this.checkRequiresFarmCreation(user);
+    return {
+      ...this.publicUser(user),
+      requiresFarmCreation,
+    };
   }
 
   private publicUser(user: User) {

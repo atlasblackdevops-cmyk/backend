@@ -58,3 +58,5 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 jwt.key
 jwt.key.pub
+
+package-lock.json
