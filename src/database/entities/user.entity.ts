@@ -47,6 +47,9 @@ export class User {
   @Column({ name: "is_invited", type: "boolean", default: false })
   isInvited: boolean;
 
+  @Column({ name: "is_active", type: "boolean", default: true })
+  isActive: boolean;
+
   @Column({ type: "varchar", nullable: true })
   mobile: string | null;
 
