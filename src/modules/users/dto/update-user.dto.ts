@@ -9,7 +9,6 @@ import {
   IsString,
   IsUUID,
   MinLength,
-  ValidateIf,
 } from "class-validator";
 
 export class UpdateUserDto {
@@ -63,4 +62,3 @@ export class UpdateUserDto {
   @IsUUID("4", { message: "Role ID must be a valid UUID" })
   roleId?: string;
 }
-

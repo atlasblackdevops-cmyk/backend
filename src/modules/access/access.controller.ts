@@ -19,7 +19,10 @@ export class AccessController {
     schema: {
       type: "object",
       properties: {
-        message: { type: "string", example: "Permissions fetched successfully" },
+        message: {
+          type: "string",
+          example: "Permissions fetched successfully",
+        },
         data: {
           type: "array",
           items: {

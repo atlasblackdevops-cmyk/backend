@@ -4,7 +4,6 @@ import {
   IsBoolean,
   IsInt,
   IsOptional,
-  IsString,
   IsUUID,
   Max,
   Min,
@@ -43,7 +42,8 @@ export class ListUsersDto {
   roleId?: string;
 
   @ApiPropertyOptional({
-    description: "Filter by active status (true for active, false for inactive)",
+    description:
+      "Filter by active status (true for active, false for inactive)",
   })
   @IsOptional()
   @Transform(({ value }) => {
@@ -54,4 +54,3 @@ export class ListUsersDto {
   @IsBoolean({ message: "isActive must be a boolean" })
   isActive?: boolean;
 }
-

@@ -17,4 +17,3 @@ export class AddIsActiveToUsers1700000000005 implements MigrationInterface {
     `);
   }
 }
-
