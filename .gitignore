@@ -61,3 +61,5 @@ jwt.key
 jwt.key.pub
 
 package-lock.json
+
+prod-db-conn.pem

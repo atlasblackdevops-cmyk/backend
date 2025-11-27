@@ -1,8 +1,9 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import path from "path";
+import { existsSync, readFileSync } from "fs";
+import path, { join } from "path";
 import { DbConfig } from "../config/db.config";
-
+const sslCert = join(process.cwd(), "prod-db-conn.pem");
 @Module({
   providers: [],
   exports: [],
@@ -21,6 +22,18 @@ import { DbConfig } from "../config/db.config";
         logging: false,
         autoLoadEntities: false,
         useUTC: true,
+        ...(existsSync(sslCert)
+          ? {
+              ssl: {
+                rejectUnauthorized: true,
+                ca: readFileSync(sslCert).toString(),
+              },
+            }
+          : {
+              // ssl: {
+              //   rejectUnauthorized: false,
+              // },
+            }),
       }),
     }),
   ],
