@@ -63,3 +63,4 @@ jwt.key.pub
 package-lock.json
 
 prod-db-conn.pem
+us-east-2-bundle.pem
