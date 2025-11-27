@@ -13,8 +13,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
   constructor(private readonly httpAdapterHost: HttpAdapterHost) {}
 
   catch(exception: unknown, host: ArgumentsHost) {
-    console.log("EXCEPTION", exception);
-
     const ctx = host.switchToHttp();
     const request = ctx.getRequest<FastifyRequest>();
 
@@ -35,6 +33,26 @@ export class HttpExceptionFilter implements ExceptionFilter {
         : {
             message: "Sorry, something went wrong there. Try again.",
           };
+
+    // Log the full error for debugging (only log stack trace for non-HTTP exceptions)
+    if (exception instanceof HttpException) {
+      console.error("HTTP EXCEPTION:", {
+        status: exception.getStatus(),
+        message: exception.message,
+        response: exception.getResponse(),
+        path: request.url,
+        method: request.method,
+      });
+    } else {
+      console.error("INTERNAL SERVER ERROR:", {
+        error: exception,
+        message:
+          exception instanceof Error ? exception.message : String(exception),
+        stack: exception instanceof Error ? exception.stack : undefined,
+        path: request.url,
+        method: request.method,
+      });
+    }
 
     const responseBody = {
       success: false,

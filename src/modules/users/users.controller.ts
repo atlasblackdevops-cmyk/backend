@@ -7,7 +7,9 @@ import {
 } from "@nestjs/swagger";
 import { Auth } from "../../decorators/auth.decorator";
 import { AuthUser } from "../../decorators/user.decorator";
+import { AddExistingUserDto } from "./dto/add-existing-user.dto";
 import { CreateUserDto } from "./dto/create-user.dto";
+import { ListAllUsersDto } from "./dto/list-all-users.dto";
 import { ListUsersDto } from "./dto/list-users.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UsersService } from "./users.service";
@@ -21,9 +23,9 @@ export class UsersController {
 
   @Post()
   @ApiOperation({
-    summary: "Add a new user to the current farm",
+    summary: "Create a new user and add to the current farm",
     description:
-      "Creates a new user and adds them to the farm associated with the authenticated user's token. The farm ID is automatically retrieved from the user's currentFarm. Only farm owners can add users.",
+      "Creates a new user with a unique email and adds them to the farm associated with the authenticated user's token. The farm ID is automatically retrieved from the user's currentFarm. Only farm owners can create users. If a user with the email already exists, an error will be returned. Use the 'Add Existing User' endpoint to add existing users to a farm.",
   })
   @ApiResponse({
     status: 201,
@@ -96,7 +98,8 @@ export class UsersController {
   })
   @ApiResponse({
     status: 409,
-    description: "Conflict - User already exists as a member of this farm",
+    description:
+      "Conflict - User with this email already exists. Use the 'Add Existing User' endpoint instead.",
   })
   async createUser(
     @AuthUser() user: { id: string },
@@ -337,5 +340,180 @@ export class UsersController {
     @Body() dto: UpdateUserDto,
   ) {
     return this.usersService.updateUser(user.id, userId, dto);
+  }
+
+  @Post("add-existing")
+  @ApiOperation({
+    summary: "Add an existing user to the current farm",
+    description:
+      "Adds an existing user to the farm associated with the authenticated user's token. The user must belong to a farm owned by the same owner. The farm ID is automatically retrieved from the creator's currentFarm. Only farm owners can add existing users.",
+  })
+  @ApiResponse({
+    status: 201,
+    description: "User added to farm successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: {
+          type: "string",
+          example: "User added to farm successfully",
+        },
+        data: {
+          type: "object",
+          properties: {
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                email: { type: "string", example: "user@example.com" },
+                name: { type: "string", example: "John Doe" },
+                role: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string", format: "uuid" },
+                    roleName: { type: "string", example: "MANAGER" },
+                  },
+                },
+              },
+            },
+            farmMember: {
+              type: "object",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                farmId: { type: "string", format: "uuid" },
+                farmName: { type: "string", example: "My Farm" },
+              },
+            },
+            permissions: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string", format: "uuid" },
+                  module: { type: "string", example: "LIVESTOCK" },
+                  action: { type: "string", example: "CREATE" },
+                  description: {
+                    type: "string",
+                    example: "Create new records in LIVESTOCK module",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      "Bad request - Invalid input or role/permission validation failed",
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      "Forbidden - Only farm owners can add users, or user belongs to a different owner's farm",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Not found - User, role, or farm not found",
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Conflict - User is already a member of this farm",
+  })
+  async addExistingUser(
+    @AuthUser() user: { id: string },
+    @Body() dto: AddExistingUserDto,
+  ) {
+    return this.usersService.addExistingUserToFarm(
+      user.id,
+      dto.userId,
+      dto.roleId,
+      dto.permissionIds,
+    );
+  }
+
+  @Get("all")
+  @ApiOperation({
+    summary: "List all users across all owner's farms (except current farm)",
+    description:
+      "Get a list of all users from all farms owned by the authenticated user, excluding the current farm. Each user object includes their farm memberships across all the owner's farms. Optional search parameter to filter by email or name. Only farm owners can access this endpoint.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Users fetched successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: { type: "string", example: "Users fetched successfully" },
+        data: {
+          type: "object",
+          properties: {
+            users: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string", format: "uuid" },
+                  email: { type: "string", example: "user@example.com" },
+                  name: { type: "string", example: "John Doe" },
+                  mobile: { type: "string", nullable: true },
+                  isActive: { type: "boolean", example: true },
+                  emailVerified: { type: "boolean", example: false },
+                  farms: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        farmMemberId: { type: "string", format: "uuid" },
+                        farm: {
+                          type: "object",
+                          properties: {
+                            id: { type: "string", format: "uuid" },
+                            farmName: { type: "string", example: "My Farm" },
+                          },
+                        },
+                        role: {
+                          type: "object",
+                          properties: {
+                            id: { type: "string", format: "uuid" },
+                            roleName: { type: "string", example: "MANAGER" },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            pagination: {
+              type: "object",
+              properties: {
+                page: { type: "number", example: 1 },
+                limit: { type: "number", example: 10 },
+                total: { type: "number", example: 25 },
+                totalPages: { type: "number", example: 3 },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Only farm owners can access this endpoint",
+  })
+  async listAllUsers(
+    @AuthUser() user: { id: string },
+    @Query() query: ListAllUsersDto,
+  ) {
+    return this.usersService.listAllUsersAcrossOwnerFarms(
+      user.id,
+      query.search,
+      query.page || 1,
+      query.limit || 10,
+    );
   }
 }

@@ -3,34 +3,23 @@ import {
   ArrayNotEmpty,
   ArrayUnique,
   IsArray,
-  IsEmail,
   IsNotEmpty,
-  IsString,
   IsUUID,
-  MinLength,
 } from "class-validator";
 
-export class CreateUserDto {
-  @ApiProperty({ description: "Full name of the user" })
-  @IsNotEmpty({ message: "Name is required" })
-  @IsString({ message: "Name must be a string" })
-  name: string;
-
-  @ApiProperty({ description: "Email address of the user" })
-  @IsNotEmpty({ message: "Email is required" })
-  @IsString({ message: "Email must be a string" })
-  @IsEmail({}, { message: "Email must be a valid email address" })
-  email: string;
-
-  @ApiProperty({ description: "Password for the user account" })
-  @IsNotEmpty({ message: "Password is required" })
-  @IsString({ message: "Password must be a string" })
-  @MinLength(6, { message: "Password must be at least 6 characters" })
-  password: string;
+export class AddExistingUserDto {
+  @ApiProperty({
+    description: "ID of the user to add to the current farm",
+    format: "uuid",
+  })
+  @IsNotEmpty({ message: "User ID is required" })
+  @IsUUID("4", { message: "User ID must be a valid UUID" })
+  userId: string;
 
   @ApiProperty({
     description:
-      "Role ID to assign to the user (cannot be OWNER or SUPER_ADMIN)",
+      "Role ID to assign to the user for this farm (cannot be OWNER or SUPER_ADMIN)",
+    format: "uuid",
   })
   @IsNotEmpty({ message: "Role ID is required" })
   @IsUUID("4", { message: "Role ID must be a valid UUID" })

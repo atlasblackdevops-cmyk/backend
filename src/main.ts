@@ -30,13 +30,24 @@ async function bootstrap() {
     type: VersioningType.URI,
   });
 
-  // Add Helmet
-  await app.register(helmet, { global: true });
-
   // Enable Cors
   await app.register(cors, {
     origin: process.env.CORS_ORIGIN ?? true,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+      "Origin",
+      "X-Requested-With",
+    ],
+  });
+
+  // Add Helmet (configured to work with CORS)
+  await app.register(helmet, {
+    crossOriginResourcePolicy: false,
+    crossOriginEmbedderPolicy: false,
   });
 
   // Add Compression

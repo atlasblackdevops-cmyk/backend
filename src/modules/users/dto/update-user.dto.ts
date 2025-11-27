@@ -40,6 +40,13 @@ export class UpdateUserDto {
 
   // For user details update
   @ApiPropertyOptional({
+    description: "User's name (only for user details update)",
+  })
+  @IsOptional()
+  @IsString({ message: "Name must be a string" })
+  name?: string;
+
+  @ApiPropertyOptional({
     description: "Email address (only for user details update)",
   })
   @IsOptional()

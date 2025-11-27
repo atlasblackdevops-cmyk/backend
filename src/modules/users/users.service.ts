@@ -79,45 +79,28 @@ export class UsersService {
       );
     }
 
-    // Check if user with this email already exists
-    let user = await this.userRepo.findOne({
+    // Check if user with this email already exists - throw error if exists
+    const existingUser = await this.userRepo.findOne({
       where: { email: dto.email },
-      relations: ["role"],
     });
 
-    // Check if user is already a member of this farm
-    if (user) {
-      const existingMember = await this.farmMemberRepo.findOne({
-        where: {
-          user: { id: user.id },
-          farm: { id: farmId },
-        },
-      });
-
-      if (existingMember) {
-        throw new ConflictException(
-          "User with this email is already a member of this farm",
-        );
-      }
-
-      // If user exists but is SUPER_ADMIN, don't allow adding to farm
-      if (user.role?.roleName === UserRole.SUPER_ADMIN) {
-        throw new BadRequestException(
-          "Cannot add a super admin as a member to a farm",
-        );
-      }
-    } else {
-      // Create new user
-      user = this.userRepo.create({
-        email: dto.email,
-        name: dto.name,
-        password: this.bcrypt.hashSync(dto.password),
-        role,
-        emailVerified: false,
-        isActive: true,
-      });
-      user = await this.userRepo.save(user);
+    if (existingUser) {
+      throw new ConflictException(
+        "User with this email already exists. Use the add existing user endpoint to add them to a farm.",
+      );
     }
+
+    // Create new user
+    const user = this.userRepo.create({
+      email: dto.email,
+      name: dto.name,
+      password: this.bcrypt.hashSync(dto.password),
+      role,
+      emailVerified: false,
+      isActive: true,
+      currentFarm: farm,
+    });
+    await this.userRepo.save(user);
 
     // Create farm member entry
     const farmMember = this.farmMemberRepo.create({
@@ -127,10 +110,8 @@ export class UsersService {
     });
     await this.farmMemberRepo.save(farmMember);
 
-    // Assign permissions if provided
-    if (dto.permissionIds && dto.permissionIds.length > 0) {
-      await this.assignPermissions(user.id, farmId, dto.permissionIds);
-    }
+    // Assign permissions (required)
+    await this.assignPermissions(user.id, farmId, dto.permissionIds);
 
     // Fetch created member with relations
     const createdMember = await this.farmMemberRepo.findOne({
@@ -371,6 +352,7 @@ export class UsersService {
     const hasStatusUpdate = dto.isActive !== undefined;
     const hasPermissionUpdate = dto.permissionIds !== undefined;
     const hasDetailsUpdate =
+      dto.name !== undefined ||
       dto.email !== undefined ||
       dto.password !== undefined ||
       dto.roleId !== undefined;
@@ -388,6 +370,11 @@ export class UsersService {
 
     // Update user details
     if (hasDetailsUpdate) {
+      // Update name if provided
+      if (dto.name !== undefined) {
+        user.name = dto.name;
+      }
+
       // Check if email already exists (if changing email)
       if (dto.email && dto.email !== user.email) {
         const existingUser = await this.userRepo.findOne({
@@ -557,6 +544,302 @@ export class UsersService {
         })),
         createdAt: farmMember.createdAt,
         updatedAt: farmMember.updatedAt,
+      },
+    };
+  }
+
+  async addExistingUserToFarm(
+    creatorId: string,
+    userId: string,
+    roleId: string,
+    permissionIds: string[],
+  ) {
+    // Get creator user with currentFarm
+    const creator = await this.userRepo.findOne({
+      where: { id: creatorId },
+      relations: ["currentFarm", "currentFarm.owner"],
+    });
+
+    if (!creator) {
+      throw new NotFoundException("Creator user not found");
+    }
+
+    if (!creator.currentFarm) {
+      throw new BadRequestException(
+        "User must have a current farm selected to add users",
+      );
+    }
+
+    const farm = creator.currentFarm;
+
+    // Verify creator is the owner of the farm
+    if (farm.owner.id !== creatorId) {
+      throw new ForbiddenException(
+        "Only the farm owner can add users to this farm",
+      );
+    }
+
+    const farmId = farm.id;
+
+    // Verify user exists
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ["role"],
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    // Check if user is SUPER_ADMIN - don't allow adding to farm
+    if (user.role?.roleName === UserRole.SUPER_ADMIN) {
+      throw new BadRequestException(
+        "Cannot add a super admin as a member to a farm",
+      );
+    }
+
+    // Check if user is already a member of this farm
+    const existingMember = await this.farmMemberRepo.findOne({
+      where: {
+        user: { id: userId },
+        farm: { id: farmId },
+      },
+    });
+
+    if (existingMember) {
+      throw new ConflictException("User is already a member of this farm");
+    }
+
+    // Find user's existing farms and verify owner
+    const userFarms = await this.farmMemberRepo.find({
+      where: { user: { id: userId } },
+      relations: ["farm", "farm.owner"],
+    });
+
+    // Check if user belongs to any farm, and if so, verify the owner is the same
+    if (userFarms.length > 0) {
+      const firstFarmOwnerId = userFarms[0].farm.owner.id;
+      if (firstFarmOwnerId !== creatorId) {
+        throw new ForbiddenException(
+          "User belongs to a farm owned by a different owner. You can only add users from your own farms.",
+        );
+      }
+    }
+
+    // Verify role exists and is not OWNER or SUPER_ADMIN
+    const role = await this.roleRepo.findOne({
+      where: { id: roleId },
+    });
+    if (!role) {
+      throw new NotFoundException("Role not found");
+    }
+
+    if (
+      role.roleName === FarmRole.OWNER ||
+      role.roleName === UserRole.SUPER_ADMIN
+    ) {
+      throw new BadRequestException(
+        "Cannot assign OWNER or SUPER_ADMIN role to users",
+      );
+    }
+
+    // Create farm member entry
+    const farmMember = this.farmMemberRepo.create({
+      user,
+      farm,
+      role,
+    });
+    await this.farmMemberRepo.save(farmMember);
+
+    // Set currentFarm if user doesn't have one
+    if (!user.currentFarm) {
+      user.currentFarm = farm;
+      await this.userRepo.save(user);
+    }
+
+    // Assign permissions
+    await this.assignPermissions(userId, farmId, permissionIds);
+
+    // Fetch created member with relations
+    const createdMember = await this.farmMemberRepo.findOne({
+      where: { id: farmMember.id },
+      relations: ["user", "role", "farm"],
+    });
+
+    if (!createdMember) {
+      throw new NotFoundException("Member not found after creation");
+    }
+
+    // Fetch assigned permissions
+    const userPermissions = await this.userPermissionRepo.find({
+      where: {
+        user: { id: userId },
+        farm: { id: farmId },
+      },
+      relations: ["permission"],
+    });
+
+    return {
+      message: "User added to farm successfully",
+      data: {
+        user: {
+          id: createdMember.user.id,
+          email: createdMember.user.email,
+          name: createdMember.user.name,
+          role: {
+            id: createdMember.role.id,
+            roleName: createdMember.role.roleName,
+          },
+        },
+        farmMember: {
+          id: createdMember.id,
+          farmId: createdMember.farm.id,
+          farmName: createdMember.farm.farmName,
+        },
+        permissions: userPermissions.map((up) => ({
+          id: up.permission.id,
+          module: up.permission.module,
+          action: up.permission.action,
+          description: up.permission.description,
+        })),
+      },
+    };
+  }
+
+  async listAllUsersAcrossOwnerFarms(
+    ownerId: string,
+    search?: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
+    // Get owner user with currentFarm
+    const owner = await this.userRepo.findOne({
+      where: { id: ownerId },
+      relations: ["currentFarm"],
+    });
+
+    if (!owner) {
+      throw new NotFoundException("Owner not found");
+    }
+
+    const currentFarmId = owner.currentFarm?.id || null;
+
+    // Get all farms owned by this owner
+    const ownerFarms = await this.farmRepo.find({
+      where: { owner: { id: ownerId } },
+      relations: ["owner"],
+    });
+
+    if (ownerFarms.length === 0) {
+      return {
+        message: "No farms found for this owner",
+        data: {
+          users: [],
+        },
+      };
+    }
+
+    // Filter out current farm
+    const farmIds = ownerFarms
+      .filter((farm) => !currentFarmId || farm.id !== currentFarmId)
+      .map((farm) => farm.id);
+
+    if (farmIds.length === 0) {
+      return {
+        message: "No other farms found (only current farm exists)",
+        data: {
+          users: [],
+        },
+      };
+    }
+
+    // Build query for farm members from all owner's farms (except current)
+    let queryBuilder = this.farmMemberRepo
+      .createQueryBuilder("farmMember")
+      .leftJoinAndSelect("farmMember.user", "user")
+      .leftJoinAndSelect("farmMember.role", "role")
+      .leftJoinAndSelect("farmMember.farm", "farm")
+      .where("farm.id IN (:...farmIds)", { farmIds })
+      .andWhere("user.id != :ownerId", { ownerId }); // Exclude farm owner
+
+    // Apply search filter if provided
+    if (search && search.trim()) {
+      const searchTerm = `%${search.trim().toLowerCase()}%`;
+      queryBuilder = queryBuilder.andWhere(
+        "(LOWER(user.email) LIKE :search OR LOWER(user.name) LIKE :search)",
+        { search: searchTerm },
+      );
+    }
+
+    const farmMembers = await queryBuilder.getMany();
+
+    // Get all user IDs who are already members of the current farm (to exclude them)
+    const currentFarmUserIds = new Set<string>();
+    if (currentFarmId) {
+      const currentFarmMembers = await this.farmMemberRepo.find({
+        where: { farm: { id: currentFarmId } },
+        relations: ["user"],
+      });
+      currentFarmMembers.forEach((member) => {
+        currentFarmUserIds.add(member.user.id);
+      });
+    }
+
+    // Group by user and collect unique users with their farm memberships
+    // Exclude users who are already members of the current farm
+    const userMap = new Map();
+
+    for (const member of farmMembers) {
+      const userId = member.user.id;
+
+      // Skip if user is already a member of the current farm
+      if (currentFarmUserIds.has(userId)) {
+        continue;
+      }
+
+      if (!userMap.has(userId)) {
+        userMap.set(userId, {
+          id: member.user.id,
+          email: member.user.email,
+          name: member.user.name,
+          mobile: member.user.mobile,
+          isActive: member.user.isActive,
+          emailVerified: member.user.emailVerified,
+          farms: [],
+        });
+      }
+
+      const userData = userMap.get(userId);
+      userData.farms.push({
+        farmMemberId: member.id,
+        farm: {
+          id: member.farm.id,
+          farmName: member.farm.farmName,
+        },
+        role: {
+          id: member.role.id,
+          roleName: member.role.roleName,
+        },
+      });
+    }
+
+    const users = Array.from(userMap.values());
+
+    // Apply pagination
+    const total = users.length;
+    const skip = (page - 1) * limit;
+    const paginatedUsers = users.slice(skip, skip + limit);
+
+    return {
+      message: "Users fetched successfully",
+      data: {
+        users: paginatedUsers,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        },
       },
     };
   }

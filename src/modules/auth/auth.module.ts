@@ -5,6 +5,7 @@ import { AuthConfig } from "../../config/auth.config";
 import { GoogleConfig } from "../../config/google.config";
 import { Farm } from "../../database/entities/farm.entity";
 import { Role } from "../../database/entities/role.entity";
+import { UserPermission } from "../../database/entities/user-permission.entity";
 import { User } from "../../database/entities/user.entity";
 import { BcryptService } from "../../services/bcrypt.service";
 import { GoogleService } from "../../services/google.service";
@@ -14,7 +15,7 @@ import { JwtAccessStrategy } from "./strategies/jwt-access.strategy";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Role, Farm]),
+    TypeOrmModule.forFeature([User, Role, Farm, UserPermission]),
     JwtModule.registerAsync({
       inject: [AuthConfig],
       useFactory: (auth: AuthConfig) => ({

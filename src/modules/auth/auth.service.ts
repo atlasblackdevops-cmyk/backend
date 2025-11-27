@@ -9,6 +9,7 @@ import { Repository } from "typeorm";
 import { AuthConfig } from "../../config/auth.config";
 import { Farm } from "../../database/entities/farm.entity";
 import { Role } from "../../database/entities/role.entity";
+import { UserPermission } from "../../database/entities/user-permission.entity";
 import { User } from "../../database/entities/user.entity";
 import { BcryptService } from "../../services/bcrypt.service";
 import { GoogleService } from "../../services/google.service";
@@ -27,6 +28,8 @@ export class AuthService {
     @InjectRepository(User) private readonly users: Repository<User>,
     @InjectRepository(Role) private readonly roles: Repository<Role>,
     @InjectRepository(Farm) private readonly farms: Repository<Farm>,
+    @InjectRepository(UserPermission)
+    private readonly userPermissions: Repository<UserPermission>,
     private readonly bcrypt: BcryptService,
     private readonly jwt: JwtService,
     private readonly authConfig: AuthConfig,
@@ -257,8 +260,48 @@ export class AuthService {
     });
     if (!user) throw new NotFoundException("Account not found.");
     const userWithFarmCheck = await this.enrichUserWithFarmCheck(user);
+
+    // Get role name
+    const roleName =
+      (user.role && user.role.roleName) ||
+      (await this.roles.findOneBy({ id: (user as any).roleId }))?.roleName ||
+      "";
+
+    // If user is not SUPER_ADMIN or OWNER, fetch their permissions
+    let permissions = [];
+    if (roleName !== "SUPER_ADMIN" && roleName !== "OWNER") {
+      // Only fetch permissions if user has a currentFarm
+      if (user.currentFarm) {
+        const userPermissionsList = await this.userPermissions.find({
+          where: {
+            user: { id: user.id },
+            farm: { id: user.currentFarm.id },
+          },
+          relations: ["permission"],
+        });
+
+        permissions = userPermissionsList.map((up) => ({
+          id: up.permission.id,
+          module: up.permission.module,
+          action: up.permission.action,
+          description: up.permission.description,
+        }));
+      }
+    }
+
+    const responseData: any = { ...userWithFarmCheck };
+
+    // Only include permissions if user is not SUPER_ADMIN or OWNER and has permissions
+    if (
+      roleName !== "SUPER_ADMIN" &&
+      roleName !== "OWNER" &&
+      permissions.length > 0
+    ) {
+      responseData.permissions = permissions;
+    }
+
     return {
-      data: userWithFarmCheck,
+      data: responseData,
     };
   }
 
