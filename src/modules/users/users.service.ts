@@ -269,7 +269,7 @@ export class UsersService {
         return {
           id: member.id,
           user: {
-            id: member.user.id,
+            farmMemberId: member.user.id,
             email: member.user.email,
             name: member.user.name,
             mobile: member.user.mobile,
@@ -520,7 +520,7 @@ export class UsersService {
     return {
       message: "User details fetched successfully",
       data: {
-        id: farmMember.id,
+        farmMemberId: farmMember.id,
         user: {
           id: farmMember.user.id,
           email: farmMember.user.email,

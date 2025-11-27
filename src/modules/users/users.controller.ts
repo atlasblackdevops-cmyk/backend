@@ -142,7 +142,7 @@ export class UsersController {
               items: {
                 type: "object",
                 properties: {
-                  id: { type: "string", format: "uuid" },
+                  farmMemberId: { type: "string", format: "uuid" },
                   user: {
                     type: "object",
                     properties: {
@@ -218,7 +218,7 @@ export class UsersController {
         data: {
           type: "object",
           properties: {
-            id: { type: "string", format: "uuid" },
+            farmMemberId: { type: "string", format: "uuid" },
             user: {
               type: "object",
               properties: {
