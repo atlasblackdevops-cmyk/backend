@@ -44,6 +44,9 @@ export class Farm {
   @Column({ type: "varchar", nullable: true })
   address: string | null;
 
+  @Column({ name: "farm_logo", type: "varchar", nullable: true })
+  farmLogo: string | null;
+
   @Column({ type: "decimal", nullable: true })
   latitude: string | null;
 

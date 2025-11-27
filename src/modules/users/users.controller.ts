@@ -1,16 +1,29 @@
-import { Body, Controller, Get, Param, Post, Put, Query } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
+} from "@nestjs/common";
 import {
   ApiBearerAuth,
+  ApiConsumes,
   ApiOperation,
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
+import { FastifyRequest } from "fastify";
 import { Auth } from "../../decorators/auth.decorator";
 import { AuthUser } from "../../decorators/user.decorator";
+import { parseMultipartData } from "../../utils/multipart.helper";
 import { AddExistingUserDto } from "./dto/add-existing-user.dto";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { ListAllUsersDto } from "./dto/list-all-users.dto";
 import { ListUsersDto } from "./dto/list-users.dto";
+import { UpdateProfileDto } from "./dto/update-profile.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { UsersService } from "./users.service";
 
@@ -514,6 +527,79 @@ export class UsersController {
       query.search,
       query.page || 1,
       query.limit || 10,
+    );
+  }
+
+  @Put("profile")
+  @ApiConsumes("multipart/form-data")
+  @ApiOperation({
+    summary: "Update user profile",
+    description:
+      "Update the authenticated user's profile including name, email, and profile picture. All fields are optional. Use multipart/form-data.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Profile updated successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: { type: "string", example: "Profile updated successfully" },
+        data: {
+          type: "object",
+          properties: {
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                email: { type: "string", example: "user@example.com" },
+                name: { type: "string", example: "John Doe" },
+                profilePicture: {
+                  type: "string",
+                  nullable: true,
+                  example:
+                    "https://bucket.s3.region.amazonaws.com/profile-pictures/uuid.jpg",
+                },
+                mobile: { type: "string", nullable: true },
+                isActive: { type: "boolean", example: true },
+                emailVerified: { type: "boolean", example: false },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Bad request - Invalid input",
+  })
+  @ApiResponse({
+    status: 409,
+    description: "Conflict - Email already exists",
+  })
+  async updateProfile(
+    @AuthUser() user: { id: string },
+    @Req() req: FastifyRequest,
+  ) {
+    const { fields, files } = await parseMultipartData(req);
+
+    const formData: UpdateProfileDto = {};
+    if (fields.name) {
+      formData.name = fields.name;
+    }
+    if (fields.email) {
+      formData.email = fields.email;
+    }
+
+    const profilePicture = files.get("profilePicture");
+    const profilePictureFile = profilePicture?.buffer;
+    const profilePictureFilename = profilePicture?.filename;
+
+    return this.usersService.updateProfile(
+      user.id,
+      formData,
+      profilePictureFile,
+      profilePictureFilename,
     );
   }
 }

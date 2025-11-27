@@ -11,6 +11,7 @@ import { Farm } from "../../database/entities/farm.entity";
 import { Role } from "../../database/entities/role.entity";
 import { User } from "../../database/entities/user.entity";
 import { FarmRole } from "../../enums/user.enum";
+import { S3Service } from "../../services/s3.service";
 import { CreateFarmDto } from "./dto/create-farm.dto";
 import { UpdateFarmDto } from "./dto/update-farm.dto";
 
@@ -22,15 +23,30 @@ export class FarmService {
     @InjectRepository(Role) private readonly roleRepo: Repository<Role>,
     @InjectRepository(FarmMember)
     private readonly farmMemberRepo: Repository<FarmMember>,
+    private readonly s3Service: S3Service,
   ) {}
 
   // Create farm owned by the authenticated user + bootstrap owner membership
-  async createFarm(ownerId: string, dto: CreateFarmDto) {
+  async createFarm(
+    ownerId: string,
+    dto: CreateFarmDto,
+    farmLogoFile?: Buffer,
+    farmLogoFilename?: string,
+  ) {
     const owner = await this.userRepo.findOne({
       where: { id: ownerId },
       relations: ["currentFarm"],
     });
     if (!owner) throw new NotFoundException("Owner not found");
+
+    let farmLogoUrl: string | null = null;
+    if (farmLogoFile && farmLogoFilename) {
+      farmLogoUrl = await this.s3Service.uploadFile(
+        farmLogoFile,
+        farmLogoFilename,
+        "farm-logos",
+      );
+    }
 
     const farm = this.farmRepo.create({
       farmName: dto.farmName,
@@ -39,6 +55,7 @@ export class FarmService {
       state: dto.state ?? null,
       country: dto.country ?? null,
       address: dto.address ?? null,
+      farmLogo: farmLogoUrl,
       owner,
     });
     await this.farmRepo.save(farm);
@@ -89,7 +106,13 @@ export class FarmService {
   }
 
   // Owner-only update; allows toggling active state
-  async updateFarm(ownerId: string, farmId: string, dto: UpdateFarmDto) {
+  async updateFarm(
+    ownerId: string,
+    farmId: string,
+    dto: UpdateFarmDto,
+    farmLogoFile?: Buffer,
+    farmLogoFilename?: string,
+  ) {
     const farm = await this.farmRepo.findOne({
       where: { id: farmId },
       relations: ["owner"],
@@ -108,6 +131,27 @@ export class FarmService {
 
     if (typeof dto.isActive === "boolean") {
       farm.isActive = dto.isActive;
+    }
+
+    // Handle farm logo upload
+    if (farmLogoFile && farmLogoFilename) {
+      // Delete old logo if exists
+      if (farm.farmLogo) {
+        try {
+          await this.s3Service.deleteFile(farm.farmLogo);
+        } catch (error) {
+          // Log error but don't fail the update
+          console.error("Error deleting old farm logo:", error);
+        }
+      }
+
+      // Upload new logo
+      const farmLogoUrl = await this.s3Service.uploadFile(
+        farmLogoFile,
+        farmLogoFilename,
+        "farm-logos",
+      );
+      farm.farmLogo = farmLogoUrl;
     }
 
     return this.farmRepo.save(farm);

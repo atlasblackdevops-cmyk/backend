@@ -15,14 +15,17 @@ import { UserPermission } from "../../database/entities/user-permission.entity";
 import { User } from "../../database/entities/user.entity";
 import { FarmRole, UserRole } from "../../enums/user.enum";
 import { BcryptService } from "../../services/bcrypt.service";
+import { S3Service } from "../../services/s3.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { ListUsersDto } from "./dto/list-users.dto";
+import { UpdateProfileDto } from "./dto/update-profile.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
+    private readonly s3Service: S3Service,
     @InjectRepository(Role) private readonly roleRepo: Repository<Role>,
     @InjectRepository(Farm) private readonly farmRepo: Repository<Farm>,
     @InjectRepository(FarmMember)
@@ -840,6 +843,79 @@ export class UsersService {
           total,
           totalPages: Math.ceil(total / limit),
         },
+      },
+    };
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: UpdateProfileDto,
+    profilePictureFile?: Buffer,
+    profilePictureFilename?: string,
+  ) {
+    const user = await this.userRepo.findOne({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    // Check if email is being updated and if it already exists
+    if (dto.email && dto.email !== user.email) {
+      const existingUser = await this.userRepo.findOne({
+        where: { email: dto.email },
+      });
+      if (existingUser) {
+        throw new ConflictException("Email already exists");
+      }
+      user.email = dto.email;
+    }
+
+    // Update name if provided
+    if (dto.name !== undefined) {
+      user.name = dto.name;
+    }
+
+    // Handle profile picture upload
+    if (profilePictureFile && profilePictureFilename) {
+      // Delete old profile picture if exists
+      if (user.profilePicture) {
+        try {
+          await this.s3Service.deleteFile(user.profilePicture);
+        } catch (error) {
+          // Log error but don't fail the update
+          console.error("Error deleting old profile picture:", error);
+        }
+      }
+
+      // Upload new profile picture
+      const profilePictureUrl = await this.s3Service.uploadFile(
+        profilePictureFile,
+        profilePictureFilename,
+        "profile-pictures",
+      );
+      user.profilePicture = profilePictureUrl;
+    }
+
+    await this.userRepo.save(user);
+
+    // Fetch updated user
+    const updatedUser = await this.userRepo.findOne({
+      where: { id: userId },
+      relations: ["role", "currentFarm"],
+    });
+
+    if (!updatedUser) {
+      throw new NotFoundException("User not found after update");
+    }
+
+    const { password, ...userWithoutPassword } = updatedUser;
+
+    return {
+      message: "Profile updated successfully",
+      data: {
+        user: userWithoutPassword,
       },
     };
   }

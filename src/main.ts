@@ -1,6 +1,7 @@
 import compression from "@fastify/compress";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import multipart from "@fastify/multipart";
 import { VersioningType } from "@nestjs/common";
 import { HttpAdapterHost, NestFactory } from "@nestjs/core";
 import {
@@ -52,6 +53,13 @@ async function bootstrap() {
 
   // Add Compression
   await app.register(compression, { threshold: 512 });
+
+  // Register multipart for file uploads
+  await app.register(multipart, {
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB
+    },
+  });
 
   // Global Response Interceptor
   app.useGlobalInterceptors(new ApiResponseInterceptor());

@@ -7,12 +7,14 @@ import { AccessModule } from "./modules/access/access.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { FarmModule } from "./modules/farm/farm.module";
 import { GlobalModule } from "./modules/global/global.module";
+import { SharedModule } from "./modules/shared/shared.module";
 import { UsersModule } from "./modules/users/users.module";
 
 @Module({
   imports: [
     ConfigifyModule.forRootAsync(),
     DatabaseModule,
+    SharedModule,
     AuthModule,
     FarmModule,
     GlobalModule,
