@@ -36,4 +36,3 @@ export class CreateAnimalsTable1700000000007 implements MigrationInterface {
     `);
   }
 }
-

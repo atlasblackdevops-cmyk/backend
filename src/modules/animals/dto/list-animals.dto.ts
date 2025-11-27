@@ -40,9 +40,7 @@ export class ListAnimalsDto {
     minLength: 2,
   })
   @IsOptional()
-  @Transform(({ value }) =>
-    typeof value === "string" ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
   @MinLength(2)
   search?: string;
 
@@ -52,13 +50,12 @@ export class ListAnimalsDto {
   })
   @IsOptional()
   @IsString()
-  @Transform(({ value }) =>
-    typeof value === "string" ? value.trim() : value,
-  )
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
   gender?: string;
 
   @ApiPropertyOptional({
-    description: "Filter by birthdate from (start date in ISO format YYYY-MM-DD)",
+    description:
+      "Filter by birthdate from (start date in ISO format YYYY-MM-DD)",
     example: "2020-01-01",
   })
   @IsOptional()
@@ -73,4 +70,3 @@ export class ListAnimalsDto {
   @IsDateString()
   birthdateTo?: string;
 }
-

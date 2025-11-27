@@ -1,10 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import {
-  IsDateString,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from "class-validator";
+import { IsDateString, IsOptional, IsString, MaxLength } from "class-validator";
 
 export class UpdateAnimalDto {
   @ApiPropertyOptional({
@@ -50,4 +45,3 @@ export class UpdateAnimalDto {
   @IsDateString()
   birthdate?: string;
 }
-

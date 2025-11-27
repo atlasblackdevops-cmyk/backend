@@ -51,4 +51,3 @@ export class CreateAnimalDto {
   @IsDateString()
   birthdate?: string;
 }
-

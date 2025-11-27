@@ -11,4 +11,3 @@ import { AnimalsService } from "./animals.service";
   providers: [AnimalsService],
 })
 export class AnimalsModule {}
-
