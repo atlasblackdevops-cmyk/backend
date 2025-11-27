@@ -3,7 +3,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { existsSync, readFileSync } from "fs";
 import path, { join } from "path";
 import { DbConfig } from "../config/db.config";
-const sslCert = join(process.cwd(), "prod-db-conn.pem");
+const sslCert = join(process.cwd(), "us-east-2-bundle.pem");
 @Module({
   providers: [],
   exports: [],
