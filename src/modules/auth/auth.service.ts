@@ -13,6 +13,7 @@ import { UserPermission } from "../../database/entities/user-permission.entity";
 import { User } from "../../database/entities/user.entity";
 import { BcryptService } from "../../services/bcrypt.service";
 import { GoogleService } from "../../services/google.service";
+import { S3Service } from "../../services/s3.service";
 import { LoginDto } from "./dto/login.dto";
 import { RegisterDto } from "./dto/register.dto";
 
@@ -34,6 +35,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly authConfig: AuthConfig,
     private readonly googleService: GoogleService,
+    private readonly s3Service: S3Service,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -106,6 +108,25 @@ export class AuthService {
     }
 
     console.log("===========user============", user);
+
+    // Helper function to upload Google picture to S3
+    const uploadGooglePicture = async (
+      pictureUrl: string | null,
+    ): Promise<string | null> => {
+      if (!pictureUrl) return null;
+      try {
+        // Download from Google and upload to S3, store only the key
+        return await this.s3Service.uploadFromUrl(
+          pictureUrl,
+          "profile-pictures",
+        );
+      } catch (error) {
+        console.error("Error uploading Google picture to S3:", error);
+        // If upload fails, return null (don't fail the sign-in)
+        return null;
+      }
+    };
+
     if (!user) {
       let defaultRole = await this.roles.findOne({
         where: { roleName: "OWNER" },
@@ -116,13 +137,17 @@ export class AuthService {
         );
       }
       console.log("===========defaultRole============", defaultRole);
+
+      // Upload Google picture to S3 and get the key
+      const profilePictureKey = await uploadGooglePicture(picture);
+
       const toCreate = this.users.create({
         email,
         password: this.bcrypt.hashSync(
           `google:${payload.sub ?? Math.random().toString(36).slice(2)}`,
         ),
         name,
-        profilePicture: picture,
+        profilePicture: profilePictureKey, // Store only the S3 key
         emailVerified: true,
         googleSub: sub,
         role: defaultRole,
@@ -148,7 +173,10 @@ export class AuthService {
           if (!user.googleSub && sub) {
             user.googleSub = sub;
             user.name = user.name ?? name;
-            user.profilePicture = user.profilePicture ?? picture;
+            // Only update profile picture if user doesn't have one
+            if (!user.profilePicture && picture) {
+              user.profilePicture = await uploadGooglePicture(picture);
+            }
             user.emailVerified = user.emailVerified || emailVerified;
             await this.users.save(user);
           }
@@ -166,7 +194,10 @@ export class AuthService {
     } else {
       // Update basic profile fields if changed
       user.name = user.name ?? name;
-      user.profilePicture = user.profilePicture ?? picture;
+      // Only update profile picture if user doesn't have one and Google provides one
+      if (!user.profilePicture && picture) {
+        user.profilePicture = await uploadGooglePicture(picture);
+      }
       user.emailVerified = user.emailVerified || emailVerified;
       if (!user.googleSub && sub) user.googleSub = sub;
       await this.users.save(user);
@@ -359,14 +390,20 @@ export class AuthService {
    */
   private async enrichUserWithFarmCheck(user: User) {
     const requiresFarmCreation = await this.checkRequiresFarmCreation(user);
+    const publicUserData = await this.publicUser(user);
     return {
-      ...this.publicUser(user),
+      ...publicUserData,
       requiresFarmCreation,
     };
   }
 
-  private publicUser(user: User) {
+  /**
+   * Returns user object without password and with presigned URL for profile picture
+   */
+  private async publicUser(user: User) {
     const { password, ...rest } = user;
-    return rest;
+
+    // Generate presigned URL for profile picture if it exists
+    return this.s3Service.attachPresignedUrls(rest, ["profilePicture"]);
   }
 }

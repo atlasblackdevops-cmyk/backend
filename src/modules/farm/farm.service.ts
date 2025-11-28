@@ -39,9 +39,10 @@ export class FarmService {
     });
     if (!owner) throw new NotFoundException("Owner not found");
 
-    let farmLogoUrl: string | null = null;
+    let farmLogoKey: string | null = null;
     if (farmLogoFile && farmLogoFilename) {
-      farmLogoUrl = await this.s3Service.uploadFile(
+      // Store only the key (path), not the full URL
+      farmLogoKey = await this.s3Service.uploadFile(
         farmLogoFile,
         farmLogoFilename,
         "farm-logos",
@@ -55,7 +56,7 @@ export class FarmService {
       state: dto.state ?? null,
       country: dto.country ?? null,
       address: dto.address ?? null,
-      farmLogo: farmLogoUrl,
+      farmLogo: farmLogoKey,
       owner,
     });
     await this.farmRepo.save(farm);
@@ -80,7 +81,8 @@ export class FarmService {
       await this.userRepo.save(owner);
     }
 
-    return farm;
+    // Return farm with presigned URL for logo
+    return this.s3Service.attachPresignedUrls(farm, ["farmLogo"]);
   }
 
   // Generate short, human-friendly unique farm codes
@@ -145,24 +147,29 @@ export class FarmService {
         }
       }
 
-      // Upload new logo
-      const farmLogoUrl = await this.s3Service.uploadFile(
+      // Upload new logo - store only the key
+      const farmLogoKey = await this.s3Service.uploadFile(
         farmLogoFile,
         farmLogoFilename,
         "farm-logos",
       );
-      farm.farmLogo = farmLogoUrl;
+      farm.farmLogo = farmLogoKey;
     }
 
-    return this.farmRepo.save(farm);
+    const savedFarm = await this.farmRepo.save(farm);
+    // Return farm with presigned URL for logo
+    return this.s3Service.attachPresignedUrls(savedFarm, ["farmLogo"]);
   }
 
   // List farms created by the owner (used for dashboard/farm switchers)
   async getOwnerFarms(ownerId: string) {
-    return this.farmRepo.find({
+    const farms = await this.farmRepo.find({
       where: { owner: { id: ownerId } },
       order: { createdAt: "DESC" },
     });
+
+    // Attach presigned URLs for all farm logos
+    return this.s3Service.attachPresignedUrlsToMany(farms, ["farmLogo"]);
   }
 
   // Fetch single farm ensuring ownership
@@ -175,7 +182,8 @@ export class FarmService {
       throw new ForbiddenException("You do not own this farm");
     }
 
-    return farm;
+    // Return farm with presigned URL for logo
+    return this.s3Service.attachPresignedUrls(farm, ["farmLogo"]);
   }
 
   // Switch current farm for the user
@@ -216,11 +224,17 @@ export class FarmService {
     // Exclude password from response
     const { password, ...userWithoutPassword } = updatedUser;
 
+    // Attach presigned URL for farm logo
+    const farmWithPresignedUrl = await this.s3Service.attachPresignedUrls(
+      farm,
+      ["farmLogo"],
+    );
+
     return {
       message: "Farm switched successfully",
       data: {
         user: userWithoutPassword,
-        currentFarm: farm,
+        currentFarm: farmWithPresignedUrl,
       },
     };
   }

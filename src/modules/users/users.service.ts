@@ -889,13 +889,13 @@ export class UsersService {
         }
       }
 
-      // Upload new profile picture
-      const profilePictureUrl = await this.s3Service.uploadFile(
+      // Upload new profile picture - store only the key
+      const profilePictureKey = await this.s3Service.uploadFile(
         profilePictureFile,
         profilePictureFilename,
         "profile-pictures",
       );
-      user.profilePicture = profilePictureUrl;
+      user.profilePicture = profilePictureKey;
     }
 
     await this.userRepo.save(user);
@@ -912,10 +912,16 @@ export class UsersService {
 
     const { password, ...userWithoutPassword } = updatedUser;
 
+    // Generate presigned URL for profile picture
+    const userWithPresignedUrl = await this.s3Service.attachPresignedUrls(
+      userWithoutPassword,
+      ["profilePicture"],
+    );
+
     return {
       message: "Profile updated successfully",
       data: {
-        user: userWithoutPassword,
+        user: userWithPresignedUrl,
       },
     };
   }
