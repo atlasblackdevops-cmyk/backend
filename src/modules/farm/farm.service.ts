@@ -35,9 +35,19 @@ export class FarmService {
   ) {
     const owner = await this.userRepo.findOne({
       where: { id: ownerId },
-      relations: ["currentFarm"],
+      relations: ["currentFarm", "role"],
     });
     if (!owner) throw new NotFoundException("Owner not found");
+
+    // Verify user has OWNER role
+    const roleName =
+      (owner.role && owner.role.roleName) ||
+      (await this.roleRepo.findOneBy({ id: (owner as any).roleId }))?.roleName;
+    if (roleName !== "OWNER") {
+      throw new ForbiddenException(
+        "Only users with OWNER role can create farms",
+      );
+    }
 
     let farmLogoKey: string | null = null;
     if (farmLogoFile && farmLogoFilename) {
@@ -117,10 +127,24 @@ export class FarmService {
   ) {
     const farm = await this.farmRepo.findOne({
       where: { id: farmId },
-      relations: ["owner"],
+      relations: ["owner", "owner.role"],
     });
-    if (!farm || farm.owner.id !== ownerId) {
+    if (!farm) {
+      throw new NotFoundException("Farm not found");
+    }
+    if (farm.owner.id !== ownerId) {
       throw new ForbiddenException("You do not own this farm");
+    }
+
+    // Verify user has OWNER role
+    const roleName =
+      (farm.owner.role && farm.owner.role.roleName) ||
+      (await this.roleRepo.findOneBy({ id: (farm.owner as any).roleId }))
+        ?.roleName;
+    if (roleName !== "OWNER") {
+      throw new ForbiddenException(
+        "Only users with OWNER role can update farms",
+      );
     }
 
     Object.assign(farm, {
@@ -161,12 +185,18 @@ export class FarmService {
     return this.s3Service.attachPresignedUrls(savedFarm, ["farmLogo"]);
   }
 
-  // List farms created by the owner (used for dashboard/farm switchers)
-  async getOwnerFarms(ownerId: string) {
-    const farms = await this.farmRepo.find({
-      where: { owner: { id: ownerId } },
+  // List all farms where user is a member (via FarmMember)
+  // Returns farms where user has any role: OWNER, MANAGER, or USER
+  async getOwnerFarms(userId: string) {
+    // Get all farm memberships for this user
+    const farmMembers = await this.farmMemberRepo.find({
+      where: { user: { id: userId } },
+      relations: ["farm"],
       order: { createdAt: "DESC" },
     });
+
+    // Extract farms from memberships
+    const farms = farmMembers.map((member) => member.farm);
 
     // Attach presigned URLs for all farm logos
     return this.s3Service.attachPresignedUrlsToMany(farms, ["farmLogo"]);
@@ -187,6 +217,7 @@ export class FarmService {
   }
 
   // Switch current farm for the user
+  // User can switch to any farm where they are a member
   async switchFarm(userId: string, farmId: string) {
     const user = await this.userRepo.findOne({
       where: { id: userId },
@@ -196,16 +227,25 @@ export class FarmService {
       throw new NotFoundException("User not found");
     }
 
-    // Verify that the farm exists and user owns it
+    // Verify that the farm exists
     const farm = await this.farmRepo.findOne({
       where: { id: farmId },
-      relations: ["owner"],
     });
     if (!farm) {
       throw new NotFoundException("Farm not found");
     }
-    if (farm.owner.id !== userId) {
-      throw new ForbiddenException("You do not own this farm");
+
+    // Verify that the user is a member of this farm (has access via FarmMember)
+    const farmMember = await this.farmMemberRepo.findOne({
+      where: {
+        user: { id: userId },
+        farm: { id: farmId },
+      },
+    });
+    if (!farmMember) {
+      throw new ForbiddenException(
+        "You do not have access to this farm. You must be a member (OWNER, MANAGER, or USER) to switch to it.",
+      );
     }
 
     // Update user's current farm
