@@ -5,9 +5,13 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
+import { AnimalFeed } from "./animal-feed.entity";
+import { AnimalHealthRecord } from "./animal-health-record.entity";
+import { AnimalWeightRecord } from "./animal-weight-record.entity";
 import { Farm } from "./farm.entity";
 import { User } from "./user.entity";
 
@@ -69,4 +73,13 @@ export class Animal {
     nullable: true,
   })
   deletedAt: Date | null;
+
+  @OneToMany(() => AnimalHealthRecord, (healthRecord) => healthRecord.animal)
+  healthRecords: AnimalHealthRecord[];
+
+  @OneToMany(() => AnimalFeed, (feed) => feed.animal)
+  feeds: AnimalFeed[];
+
+  @OneToMany(() => AnimalWeightRecord, (weightRecord) => weightRecord.animal)
+  weightRecords: AnimalWeightRecord[];
 }
