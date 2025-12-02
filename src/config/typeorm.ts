@@ -1,6 +1,8 @@
 import { config } from "dotenv";
-import path from "path";
+import { existsSync, readFileSync } from "fs";
+import path, { join } from "path";
 import { DataSource } from "typeorm";
+const sslCert = join(process.cwd(), "us-east-2-bundle.pem");
 
 config({ path: ".env" });
 
@@ -16,6 +18,18 @@ const dataSource = new DataSource({
   synchronize: false,
   useUTC: true,
   logging: false,
+  ...(existsSync(sslCert)
+    ? {
+        ssl: {
+          rejectUnauthorized: true,
+          ca: readFileSync(sslCert).toString(),
+        },
+      }
+    : {
+        // ssl: {
+        //   rejectUnauthorized: false,
+        // },
+      }),
 });
 
 export default dataSource;
