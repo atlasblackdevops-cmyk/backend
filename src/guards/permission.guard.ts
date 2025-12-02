@@ -13,6 +13,7 @@ import { FarmMember } from "../database/entities/farm-member.entity";
 import { Farm } from "../database/entities/farm.entity";
 import { Permission } from "../database/entities/permission.entity";
 import { UserPermission } from "../database/entities/user-permission.entity";
+import { User } from "../database/entities/user.entity";
 import { UserRole } from "../enums/user.enum";
 
 interface PermissionMetadata {
@@ -57,19 +58,44 @@ export class PermissionGuard implements CanActivate {
       return true;
     }
 
-    const { module, action, farmIdParam = "farmId" } = permissionMeta;
+    const { module, action, farmIdParam } = permissionMeta;
 
-    // Get farm ID from request (params, query, or body)
-    const farmId =
-      request.params?.[farmIdParam] ||
-      request.query?.[farmIdParam] ||
-      request.body?.[farmIdParam] ||
-      (user as any).currentFarm?.id ||
-      (user as any).currentFarm;
+    let farmId: string | null = null;
+
+    // If farmIdParam is provided, check params/query/body for farmId
+    // If not provided, use user's currentFarm from token (for endpoints like animals)
+    if (farmIdParam) {
+      // Get farm ID from request (params, query, or body)
+      farmId =
+        request.params?.[farmIdParam] ||
+        request.query?.[farmIdParam] ||
+        request.body?.[farmIdParam] ||
+        null;
+    }
+
+    // If farmId not found in request (or farmIdParam not provided), use user's currentFarm
+    if (!farmId) {
+      // Load user with currentFarm if not already loaded
+      let userWithFarm = user as any;
+      if (!userWithFarm.currentFarm && userWithFarm.id) {
+        const userRepo = this.dataSource.getRepository(User);
+        const fullUser = await userRepo.findOne({
+          where: { id: userWithFarm.id },
+          relations: ["currentFarm"],
+        });
+        if (fullUser) {
+          userWithFarm = fullUser;
+          // Update request.user for potential use in controllers
+          request.user = fullUser as any;
+        }
+      }
+
+      farmId = userWithFarm.currentFarm?.id || userWithFarm.currentFarm || null;
+    }
 
     if (!farmId) {
       throw new ForbiddenException(
-        "Farm context is required for permission check",
+        "Farm context is required for permission check. Please ensure you have a current farm selected.",
       );
     }
 

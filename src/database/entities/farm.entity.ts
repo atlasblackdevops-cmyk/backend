@@ -9,6 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
+import { Animal } from "./animal.entity";
 import { UserPermission } from "./user-permission.entity";
 import { User } from "./user.entity";
 
@@ -85,4 +86,7 @@ export class Farm {
 
   @OneToMany(() => UserPermission, (userPermission) => userPermission.farm)
   userPermissions: UserPermission[];
+
+  @OneToMany(() => Animal, (animal) => animal.farm)
+  animals: Animal[];
 }

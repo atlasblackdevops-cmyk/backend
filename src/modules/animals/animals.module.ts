@@ -1,0 +1,40 @@
+import { Module } from "@nestjs/common";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { AnimalFeed } from "../../database/entities/animal-feed.entity";
+import { AnimalHealthRecord } from "../../database/entities/animal-health-record.entity";
+import { AnimalWeightRecord } from "../../database/entities/animal-weight-record.entity";
+import { Animal } from "../../database/entities/animal.entity";
+import { Farm } from "../../database/entities/farm.entity";
+import { AnimalsController } from "./animals.controller";
+import { AnimalsService } from "./animals.service";
+import { FeedRecordsController } from "./feed-records.controller";
+import { FeedRecordsService } from "./feed-records.service";
+import { HealthRecordsController } from "./health-records.controller";
+import { HealthRecordsService } from "./health-records.service";
+import { WeightRecordsController } from "./weight-records.controller";
+import { WeightRecordsService } from "./weight-records.service";
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([
+      Animal,
+      Farm,
+      AnimalHealthRecord,
+      AnimalWeightRecord,
+      AnimalFeed,
+    ]),
+  ],
+  controllers: [
+    AnimalsController,
+    HealthRecordsController,
+    WeightRecordsController,
+    FeedRecordsController,
+  ],
+  providers: [
+    AnimalsService,
+    HealthRecordsService,
+    WeightRecordsService,
+    FeedRecordsService,
+  ],
+})
+export class AnimalsModule {}

@@ -8,6 +8,7 @@ import {
 import { FastifyRequest } from "fastify";
 import { Auth } from "../../decorators/auth.decorator";
 import { AuthUser } from "../../decorators/user.decorator";
+import { UserRole } from "../../enums/user.enum";
 import { parseMultipartData } from "../../utils/multipart.helper";
 import { CreateFarmDto } from "./dto/create-farm.dto";
 import { SwitchFarmDto } from "./dto/switch-farm.dto";
@@ -15,21 +16,25 @@ import { UpdateFarmDto } from "./dto/update-farm.dto";
 import { FarmService } from "./farm.service";
 
 @ApiTags("Farms")
-@Auth()
-@Controller({ path: "farms", version: "1" }) // All endpoints require JWT authentication
+@Controller({ path: "farms", version: "1" })
 export class FarmController {
   constructor(private readonly farmService: FarmService) {}
 
   @Post()
+  @Auth([UserRole.OWNER])
   @ApiConsumes("multipart/form-data")
   @ApiOperation({
     summary: "Create a new farm",
     description:
-      "Create a new farm owned by the authenticated user. Farm logo is optional. Use multipart/form-data.",
+      "Create a new farm owned by the authenticated user. Only users with OWNER role can create farms. Farm logo is optional. Use multipart/form-data.",
   })
   @ApiResponse({
     status: 201,
     description: "Farm created successfully",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - Only users with OWNER role can create farms",
   })
   async createFarm(@AuthUser() user: any, @Req() req: FastifyRequest) {
     const { fields, files } = await parseMultipartData(req);
@@ -55,11 +60,12 @@ export class FarmController {
   }
 
   @Put(":farmId")
+  @Auth([UserRole.OWNER])
   @ApiConsumes("multipart/form-data")
   @ApiOperation({
     summary: "Update farm details",
     description:
-      "Update farm details including name, city, state, country, address, and logo. All fields are optional. Use multipart/form-data.",
+      "Update farm details including name, city, state, country, address, and logo. Only the farm owner with OWNER role can update. All fields are optional. Use multipart/form-data.",
   })
   @ApiResponse({
     status: 200,
@@ -67,7 +73,8 @@ export class FarmController {
   })
   @ApiResponse({
     status: 403,
-    description: "Forbidden - You do not own this farm",
+    description:
+      "Forbidden - You do not own this farm or you don't have OWNER role",
   })
   async updateFarm(
     @AuthUser() user: any,
@@ -110,16 +117,46 @@ export class FarmController {
   }
 
   @Get()
+  @Auth()
+  @ApiOperation({
+    summary: "List all farms where user is a member",
+    description:
+      "Returns all farms where the authenticated user is a member (OWNER, MANAGER, or USER role).",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "List of farms where user is a member",
+  })
   listFarms(@AuthUser() user: any) {
     return this.farmService.getOwnerFarms(user.id);
   }
 
   @Post("switch")
+  @Auth()
+  @ApiOperation({
+    summary: "Switch current farm",
+    description:
+      "Switch the user's current farm to a farm where they are a member (OWNER, MANAGER, or USER role).",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Farm switched successfully",
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      "Forbidden - User does not have access to this farm (not a member)",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Farm not found",
+  })
   switchFarm(@AuthUser() user: any, @Body() dto: SwitchFarmDto) {
     return this.farmService.switchFarm(user.id, dto.farmId);
   }
 
   @Get(":farmId")
+  @Auth()
   farmDetails(@AuthUser() user: any, @Param("farmId") farmId: string) {
     return this.farmService.getFarmDetails(user.id, farmId);
   }

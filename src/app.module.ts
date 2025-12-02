@@ -4,6 +4,7 @@ import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { DatabaseModule } from "./database/database.module";
 import { AccessModule } from "./modules/access/access.module";
+import { AnimalsModule } from "./modules/animals/animals.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { FarmModule } from "./modules/farm/farm.module";
 import { GlobalModule } from "./modules/global/global.module";
@@ -20,6 +21,7 @@ import { UsersModule } from "./modules/users/users.module";
     GlobalModule,
     AccessModule,
     UsersModule,
+    AnimalsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
