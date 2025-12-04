@@ -18,7 +18,10 @@ import {
 import { FastifyRequest } from "fastify";
 import { Auth } from "../../decorators/auth.decorator";
 import { AuthUser } from "../../decorators/user.decorator";
-import { parseMultipartData } from "../../utils/multipart.helper";
+import {
+  getFieldValue,
+  parseMultipartData,
+} from "../../utils/multipart.helper";
 import { AddExistingUserDto } from "./dto/add-existing-user.dto";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { ListAllUsersDto } from "./dto/list-all-users.dto";
@@ -585,15 +588,27 @@ export class UsersController {
 
     const formData: UpdateProfileDto = {};
     if (fields.name) {
-      formData.name = fields.name;
+      formData.name = getFieldValue(fields.name);
     }
     if (fields.email) {
-      formData.email = fields.email;
+      formData.email = getFieldValue(fields.email);
     }
 
     const profilePicture = files.get("profilePicture");
-    const profilePictureFile = profilePicture?.buffer;
-    const profilePictureFilename = profilePicture?.filename;
+    // Handle both single file and array (from updated multipart helper)
+    let profilePictureFile: Buffer | undefined;
+    let profilePictureFilename: string | undefined;
+
+    if (profilePicture) {
+      if (Array.isArray(profilePicture)) {
+        // If array, take the first file
+        profilePictureFile = profilePicture[0]?.buffer;
+        profilePictureFilename = profilePicture[0]?.filename;
+      } else {
+        profilePictureFile = profilePicture.buffer;
+        profilePictureFilename = profilePicture.filename;
+      }
+    }
 
     return this.usersService.updateProfile(
       user.id,

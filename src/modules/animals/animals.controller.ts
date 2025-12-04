@@ -24,7 +24,10 @@ import {
   PermissionAction,
   PermissionModule,
 } from "../../enums/permission.enum";
-import { parseMultipartData } from "../../utils/multipart.helper";
+import {
+  getFieldValue,
+  parseMultipartData,
+} from "../../utils/multipart.helper";
 import { AnimalsService } from "./animals.service";
 import { CreateAnimalDto } from "./dto/create-animal.dto";
 import { ListAnimalsDto } from "./dto/list-animals.dto";
@@ -241,11 +244,11 @@ export class AnimalsController {
     }
 
     const dto: CreateAnimalDto = {
-      name: fields.name ?? "",
-      species: fields.species,
-      breed: fields.breed,
-      gender: fields.gender,
-      birthdate: fields.birthdate,
+      name: getFieldValue(fields.name) ?? "",
+      species: getFieldValue(fields.species),
+      breed: getFieldValue(fields.breed),
+      gender: getFieldValue(fields.gender),
+      birthdate: getFieldValue(fields.birthdate),
     };
 
     if (!dto.name) {
@@ -253,8 +256,20 @@ export class AnimalsController {
     }
 
     const image = files.get("image");
-    const imageBuffer = image?.buffer;
-    const imageFilename = image?.filename;
+    // Handle both single file and array (from updated multipart helper)
+    let imageBuffer: Buffer | undefined;
+    let imageFilename: string | undefined;
+
+    if (image) {
+      if (Array.isArray(image)) {
+        // If array, take the first image
+        imageBuffer = image[0]?.buffer;
+        imageFilename = image[0]?.filename;
+      } else {
+        imageBuffer = image.buffer;
+        imageFilename = image.filename;
+      }
+    }
 
     return this.animalsService.createAnimal(
       user.id,
@@ -797,16 +812,28 @@ export class AnimalsController {
     const { fields, files } = await parseMultipartData(req);
 
     const dto: UpdateAnimalDto = {
-      name: fields.name,
-      species: fields.species,
-      breed: fields.breed,
-      gender: fields.gender,
-      birthdate: fields.birthdate,
+      name: getFieldValue(fields.name),
+      species: getFieldValue(fields.species),
+      breed: getFieldValue(fields.breed),
+      gender: getFieldValue(fields.gender),
+      birthdate: getFieldValue(fields.birthdate),
     };
 
     const image = files.get("image");
-    const imageBuffer = image?.buffer;
-    const imageFilename = image?.filename;
+    // Handle both single file and array (from updated multipart helper)
+    let imageBuffer: Buffer | undefined;
+    let imageFilename: string | undefined;
+
+    if (image) {
+      if (Array.isArray(image)) {
+        // If array, take the first image
+        imageBuffer = image[0]?.buffer;
+        imageFilename = image[0]?.filename;
+      } else {
+        imageBuffer = image.buffer;
+        imageFilename = image.filename;
+      }
+    }
 
     return this.animalsService.updateAnimal(
       animalId,

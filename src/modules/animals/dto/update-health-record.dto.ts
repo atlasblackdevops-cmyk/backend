@@ -1,6 +1,7 @@
-import { ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsDateString,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -8,25 +9,25 @@ import {
 } from "class-validator";
 
 export class UpdateHealthRecordDto {
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: "Type of health record",
     example: "Vaccination",
     maxLength: 255,
   })
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(255)
-  recordType?: string;
+  recordType: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: "Name of the health record",
     example: "Annual Vaccination",
     maxLength: 255,
   })
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(255)
-  name?: string;
+  name: string;
 
   @ApiPropertyOptional({
     description: "Cost of the health record",

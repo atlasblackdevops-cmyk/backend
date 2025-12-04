@@ -5,10 +5,12 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
 import { Animal } from "./animal.entity";
+import { HealthRecordImage } from "./health-record-image.entity";
 import { User } from "./user.entity";
 
 @Entity({ name: "animal_health_records" })
@@ -34,6 +36,11 @@ export class AnimalHealthRecord {
 
   @Column({ type: "text", nullable: true })
   description: string | null;
+
+  @OneToMany(() => HealthRecordImage, (image) => image.healthRecord, {
+    cascade: false,
+  })
+  images: HealthRecordImage[];
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: "created_by" })

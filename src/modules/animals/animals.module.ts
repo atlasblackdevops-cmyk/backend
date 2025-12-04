@@ -5,6 +5,7 @@ import { AnimalHealthRecord } from "../../database/entities/animal-health-record
 import { AnimalWeightRecord } from "../../database/entities/animal-weight-record.entity";
 import { Animal } from "../../database/entities/animal.entity";
 import { Farm } from "../../database/entities/farm.entity";
+import { HealthRecordImage } from "../../database/entities/health-record-image.entity";
 import { AnimalsController } from "./animals.controller";
 import { AnimalsService } from "./animals.service";
 import { FeedRecordsController } from "./feed-records.controller";
@@ -20,6 +21,7 @@ import { WeightRecordsService } from "./weight-records.service";
       Animal,
       Farm,
       AnimalHealthRecord,
+      HealthRecordImage,
       AnimalWeightRecord,
       AnimalFeed,
     ]),
