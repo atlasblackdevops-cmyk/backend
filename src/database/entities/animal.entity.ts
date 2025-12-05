@@ -10,6 +10,7 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 import { AnimalFeed } from "./animal-feed.entity";
+import { AnimalGroup } from "./animal-group.entity";
 import { AnimalHealthRecord } from "./animal-health-record.entity";
 import { AnimalWeightRecord } from "./animal-weight-record.entity";
 import { Farm } from "./farm.entity";
@@ -82,4 +83,7 @@ export class Animal {
 
   @OneToMany(() => AnimalWeightRecord, (weightRecord) => weightRecord.animal)
   weightRecords: AnimalWeightRecord[];
+
+  @OneToMany(() => AnimalGroup, (animalGroup) => animalGroup.animal)
+  animalGroups: AnimalGroup[];
 }
