@@ -33,16 +33,10 @@ async function bootstrap() {
 
   // Enable Cors
   await app.register(cors, {
-    origin: process.env.CORS_ORIGIN ?? true,
+    origin: ["http://localhost:3000", "https://dev.agripulse.io"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Accept",
-      "Origin",
-      "X-Requested-With",
-    ],
+    allowedHeaders: "*",
   });
 
   // Add Helmet (configured to work with CORS)
