@@ -1,34 +1,40 @@
-import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsNumber, IsOptional, IsString, MaxLength } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from "class-validator";
 
 export class UpdateFeedRecordDto {
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: "Quantity of feed",
     example: "25.5",
   })
-  @IsOptional()
   @IsNumber()
-  quantity?: number;
+  @IsNotEmpty()
+  quantity: number;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: "Unit of quantity measurement",
     example: "kg",
     maxLength: 50,
   })
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(50)
-  quantityUnit?: string;
+  quantityUnit: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: "Type of feed",
     example: "Hay",
     maxLength: 255,
   })
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(255)
-  feedType?: string;
+  feedType: string;
 
   @ApiPropertyOptional({
     description: "Additional notes about the feed",

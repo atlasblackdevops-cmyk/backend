@@ -267,9 +267,9 @@ export class UsersService {
         });
 
         return {
-          id: member.id,
+          farmMemberId: member.id,
           user: {
-            farmMemberId: member.user.id,
+            id: member.user.id,
             email: member.user.email,
             name: member.user.name,
             mobile: member.user.mobile,

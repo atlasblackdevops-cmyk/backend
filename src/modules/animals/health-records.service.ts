@@ -5,10 +5,12 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { In, Repository } from "typeorm";
 import { AnimalHealthRecord } from "../../database/entities/animal-health-record.entity";
 import { Animal } from "../../database/entities/animal.entity";
+import { HealthRecordImage } from "../../database/entities/health-record-image.entity";
 import { User } from "../../database/entities/user.entity";
+import { S3Service } from "../../services/s3.service";
 import { CreateHealthRecordDto } from "./dto/create-health-record.dto";
 import { ListHealthRecordsDto } from "./dto/list-health-records.dto";
 import { UpdateHealthRecordDto } from "./dto/update-health-record.dto";
@@ -18,8 +20,11 @@ export class HealthRecordsService {
   constructor(
     @InjectRepository(AnimalHealthRecord)
     private readonly healthRecordRepo: Repository<AnimalHealthRecord>,
+    @InjectRepository(HealthRecordImage)
+    private readonly healthRecordImageRepo: Repository<HealthRecordImage>,
     @InjectRepository(Animal)
     private readonly animalRepo: Repository<Animal>,
+    private readonly s3Service: S3Service,
   ) {}
 
   async createHealthRecord(
@@ -27,6 +32,7 @@ export class HealthRecordsService {
     userId: string,
     userFarmId: string,
     dto: CreateHealthRecordDto,
+    images?: Array<{ buffer: Buffer; filename: string }>,
   ) {
     // Check if animal exists
     const animal = await this.animalRepo.findOne({
@@ -84,12 +90,34 @@ export class HealthRecordsService {
 
     await this.healthRecordRepo.save(healthRecord);
 
+    // Upload images if provided
+    if (images && images.length > 0) {
+      const imagePromises = images.map(async (image) => {
+        const imageKey = await this.s3Service.uploadFile(
+          image.buffer,
+          image.filename,
+          "health-record-images",
+        );
+
+        const healthRecordImage = this.healthRecordImageRepo.create({
+          healthRecord,
+          imageKey,
+        });
+
+        return this.healthRecordImageRepo.save(healthRecordImage);
+      });
+
+      await Promise.all(imagePromises);
+    }
+
     const createdRecord = await this.healthRecordRepo
       .createQueryBuilder("healthRecord")
       .leftJoinAndSelect("healthRecord.animal", "animal")
       .leftJoinAndSelect("healthRecord.createdBy", "createdBy")
       .leftJoinAndSelect("healthRecord.updatedBy", "updatedBy")
+      .leftJoinAndSelect("healthRecord.images", "images")
       .where("healthRecord.id = :id", { id: healthRecord.id })
+      .andWhere("images.deletedAt IS NULL")
       .select([
         "healthRecord",
         "animal.id",
@@ -98,8 +126,43 @@ export class HealthRecordsService {
         "createdBy.email",
         "updatedBy.id",
         "updatedBy.email",
+        "images.id",
+        "images.imageKey",
       ])
       .getOne();
+
+    // Attach presigned URLs to images
+    const recordImages = createdRecord?.images || [];
+    if (recordImages.length > 0) {
+      const imagesWithUrls = await Promise.all(
+        recordImages.map(async (img) => {
+          if (!img.imageKey) {
+            console.error(`Image ${img.id} has no imageKey`);
+            return {
+              id: img.id,
+              imageKey: null,
+              imageUrl: null,
+            };
+          }
+
+          const imageUrl = await this.s3Service.getPresignedUrl(img.imageKey);
+          if (!imageUrl) {
+            console.error(
+              `Failed to generate presigned URL for imageKey: ${img.imageKey}`,
+            );
+          }
+
+          return {
+            id: img.id,
+            imageKey: img.imageKey,
+            imageUrl,
+          };
+        }),
+      );
+      (createdRecord as any).images = imagesWithUrls;
+    } else {
+      (createdRecord as any).images = [];
+    }
 
     return {
       message: "Health record created successfully",
@@ -115,6 +178,8 @@ export class HealthRecordsService {
     userId: string,
     userFarmId: string,
     dto: UpdateHealthRecordDto,
+    newImages?: Array<{ buffer: Buffer; filename: string }>,
+    deletedImageKeys?: string[],
   ) {
     // Check if animal exists
     const animal = await this.animalRepo.findOne({
@@ -194,11 +259,77 @@ export class HealthRecordsService {
 
     await this.healthRecordRepo.save(healthRecord);
 
+    // Handle image deletion if specific image keys are provided
+    if (deletedImageKeys && deletedImageKeys.length > 0) {
+      // Get existing images that match the keys to delete
+      const imagesToDelete = await this.healthRecordImageRepo.find({
+        where: {
+          healthRecord: { id: healthRecord.id },
+          imageKey: In(deletedImageKeys),
+        },
+      });
+
+      if (imagesToDelete.length > 0) {
+        // Delete from S3 and database (hard delete - permanent removal)
+        const deletePromises = imagesToDelete.map(async (img) => {
+          try {
+            // Delete from S3 first
+            await this.s3Service.deleteFile(img.imageKey);
+          } catch (error) {
+            // Log error but continue with database deletion
+            console.error(`Failed to delete S3 file ${img.imageKey}:`, error);
+          }
+          // Hard delete from database (permanent removal)
+          return this.healthRecordImageRepo.delete(img.id);
+        });
+
+        await Promise.all(deletePromises);
+      }
+    }
+
+    // Handle new image uploads if provided
+    if (newImages && newImages.length > 0) {
+      // Check total images count (existing + new) doesn't exceed 10
+      const existingImagesCount = await this.healthRecordImageRepo.count({
+        where: {
+          healthRecord: { id: healthRecord.id },
+        },
+      });
+
+      const totalImagesAfterAdd = existingImagesCount + newImages.length;
+      if (totalImagesAfterAdd > 10) {
+        throw new BadRequestException(
+          `Cannot add ${newImages.length} image(s). Maximum 10 images allowed per health record. Currently have ${existingImagesCount} image(s).`,
+        );
+      }
+
+      // Upload new images
+      const uploadPromises = newImages.map(async (image) => {
+        const imageKey = await this.s3Service.uploadFile(
+          image.buffer,
+          image.filename,
+          "health-record-images",
+        );
+
+        const healthRecordImage = this.healthRecordImageRepo.create({
+          healthRecord,
+          imageKey,
+        });
+
+        return this.healthRecordImageRepo.save(healthRecordImage);
+      });
+
+      await Promise.all(uploadPromises);
+    }
+
+    // Reload the health record with images after update
+    // Use a fresh query to ensure we get the latest images
     const updatedRecord = await this.healthRecordRepo
       .createQueryBuilder("healthRecord")
       .leftJoinAndSelect("healthRecord.animal", "animal")
       .leftJoinAndSelect("healthRecord.createdBy", "createdBy")
       .leftJoinAndSelect("healthRecord.updatedBy", "updatedBy")
+      .leftJoinAndSelect("healthRecord.images", "images")
       .where("healthRecord.id = :id", { id: healthRecord.id })
       .select([
         "healthRecord",
@@ -208,8 +339,43 @@ export class HealthRecordsService {
         "createdBy.email",
         "updatedBy.id",
         "updatedBy.email",
+        "images.id",
+        "images.imageKey",
       ])
       .getOne();
+
+    // Attach presigned URLs to images
+    const recordImages = updatedRecord?.images || [];
+    if (recordImages.length > 0) {
+      const imagesWithUrls = await Promise.all(
+        recordImages.map(async (img) => {
+          if (!img.imageKey) {
+            console.error(`Image ${img.id} has no imageKey`);
+            return {
+              id: img.id,
+              imageKey: null,
+              imageUrl: null,
+            };
+          }
+
+          const imageUrl = await this.s3Service.getPresignedUrl(img.imageKey);
+          if (!imageUrl) {
+            console.error(
+              `Failed to generate presigned URL for imageKey: ${img.imageKey}`,
+            );
+          }
+
+          return {
+            id: img.id,
+            imageKey: img.imageKey,
+            imageUrl,
+          };
+        }),
+      );
+      (updatedRecord as any).images = imagesWithUrls;
+    } else {
+      (updatedRecord as any).images = [];
+    }
 
     return {
       message: "Health record updated successfully",
@@ -256,6 +422,11 @@ export class HealthRecordsService {
       .leftJoinAndSelect("healthRecord.animal", "animal")
       .leftJoinAndSelect("healthRecord.createdBy", "createdBy")
       .leftJoinAndSelect("healthRecord.updatedBy", "updatedBy")
+      .leftJoinAndSelect(
+        "healthRecord.images",
+        "images",
+        "images.deletedAt IS NULL",
+      )
       .where("animal.id = :animalId", { animalId })
       .andWhere("healthRecord.deletedAt IS NULL")
       .select([
@@ -266,6 +437,8 @@ export class HealthRecordsService {
         "createdBy.email",
         "updatedBy.id",
         "updatedBy.email",
+        "images.id",
+        "images.imageKey",
       ])
       .orderBy("healthRecord.createdAt", "DESC");
 
@@ -285,10 +458,52 @@ export class HealthRecordsService {
     const total = await qb.getCount();
     const healthRecords = await qb.skip(skip).take(limit).getMany();
 
+    // Attach presigned URLs to images for each health record
+    const healthRecordsWithImages = await Promise.all(
+      healthRecords.map(async (record) => {
+        const recordImages = record.images || [];
+        // No need to filter by deletedAt since we're doing hard delete
+
+        if (recordImages.length > 0) {
+          const imagesWithUrls = await Promise.all(
+            recordImages.map(async (img) => {
+              if (!img.imageKey) {
+                console.error(`Image ${img.id} has no imageKey`);
+                return {
+                  id: img.id,
+                  imageKey: null,
+                  imageUrl: null,
+                };
+              }
+
+              const imageUrl = await this.s3Service.getPresignedUrl(
+                img.imageKey,
+              );
+              if (!imageUrl) {
+                console.error(
+                  `Failed to generate presigned URL for imageKey: ${img.imageKey}`,
+                );
+              }
+
+              return {
+                id: img.id,
+                imageKey: img.imageKey,
+                imageUrl,
+              };
+            }),
+          );
+          (record as any).images = imagesWithUrls;
+        } else {
+          (record as any).images = [];
+        }
+        return record;
+      }),
+    );
+
     return {
       message: "Health records fetched successfully",
       data: {
-        healthRecords,
+        healthRecords: healthRecordsWithImages,
         pagination: {
           page,
           limit,

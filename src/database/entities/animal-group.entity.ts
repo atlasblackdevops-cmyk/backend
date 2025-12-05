@@ -1,46 +1,33 @@
 import {
-  Column,
   CreateDateColumn,
   DeleteDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
-  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from "typeorm";
 import { Animal } from "./animal.entity";
-import { HealthRecordImage } from "./health-record-image.entity";
+import { Farm } from "./farm.entity";
+import { Group } from "./group.entity";
 import { User } from "./user.entity";
 
-@Entity({ name: "animal_health_records" })
-export class AnimalHealthRecord {
+@Entity({ name: "animal_groups" })
+export class AnimalGroup {
   @PrimaryGeneratedColumn("uuid")
   id: string;
+
+  @ManyToOne(() => Farm, { nullable: false })
+  @JoinColumn({ name: "farm_id" })
+  farm: Farm;
 
   @ManyToOne(() => Animal, { nullable: false })
   @JoinColumn({ name: "animal_id" })
   animal: Animal;
 
-  @Column({ name: "record_type", type: "varchar" })
-  recordType: string;
-
-  @Column({ type: "varchar" })
-  name: string;
-
-  @Column({ type: "decimal", nullable: true })
-  cost: string | null;
-
-  @Column({ name: "next_due_date", type: "date", nullable: true })
-  nextDueDate: Date | null;
-
-  @Column({ type: "text", nullable: true })
-  description: string | null;
-
-  @OneToMany(() => HealthRecordImage, (image) => image.healthRecord, {
-    cascade: false,
-  })
-  images: HealthRecordImage[];
+  @ManyToOne(() => Group, { nullable: false })
+  @JoinColumn({ name: "group_id" })
+  group: Group;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: "created_by" })

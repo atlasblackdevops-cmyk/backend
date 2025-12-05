@@ -1,6 +1,7 @@
-import { ApiPropertyOptional } from "@nestjs/swagger";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsDateString,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -8,31 +9,31 @@ import {
 } from "class-validator";
 
 export class UpdateWeightRecordDto {
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: "Date and time when weight was measured (ISO format)",
     example: "2024-01-15T10:30:00Z",
   })
-  @IsOptional()
   @IsDateString()
-  measuredAt?: string;
+  @IsNotEmpty()
+  measuredAt: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: "Weight value",
     example: "450.5",
   })
-  @IsOptional()
   @IsNumber()
-  weight?: number;
+  @IsNotEmpty()
+  weight: number;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: "Unit of weight measurement",
     example: "kg",
     maxLength: 50,
   })
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(50)
-  weightUnit?: string;
+  weightUnit: string;
 
   @ApiPropertyOptional({
     description: "Additional notes about the weight measurement",

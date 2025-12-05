@@ -9,7 +9,10 @@ import { FastifyRequest } from "fastify";
 import { Auth } from "../../decorators/auth.decorator";
 import { AuthUser } from "../../decorators/user.decorator";
 import { UserRole } from "../../enums/user.enum";
-import { parseMultipartData } from "../../utils/multipart.helper";
+import {
+  getFieldValue,
+  parseMultipartData,
+} from "../../utils/multipart.helper";
 import { CreateFarmDto } from "./dto/create-farm.dto";
 import { SwitchFarmDto } from "./dto/switch-farm.dto";
 import { UpdateFarmDto } from "./dto/update-farm.dto";
@@ -40,16 +43,28 @@ export class FarmController {
     const { fields, files } = await parseMultipartData(req);
 
     const dto: CreateFarmDto = {
-      farmName: fields.farmName || "",
-      city: fields.city,
-      state: fields.state,
-      country: fields.country,
-      address: fields.address,
+      farmName: getFieldValue(fields.farmName) || "",
+      city: getFieldValue(fields.city),
+      state: getFieldValue(fields.state),
+      country: getFieldValue(fields.country),
+      address: getFieldValue(fields.address),
     };
 
     const farmLogo = files.get("farmLogo");
-    const farmLogoFile = farmLogo?.buffer;
-    const farmLogoFilename = farmLogo?.filename;
+    // Handle both single file and array (from updated multipart helper)
+    let farmLogoFile: Buffer | undefined;
+    let farmLogoFilename: string | undefined;
+
+    if (farmLogo) {
+      if (Array.isArray(farmLogo)) {
+        // If array, take the first file
+        farmLogoFile = farmLogo[0]?.buffer;
+        farmLogoFilename = farmLogo[0]?.filename;
+      } else {
+        farmLogoFile = farmLogo.buffer;
+        farmLogoFilename = farmLogo.filename;
+      }
+    }
 
     return this.farmService.createFarm(
       user.id,
@@ -85,27 +100,40 @@ export class FarmController {
 
     const dto: UpdateFarmDto = {};
     if (fields.farmName) {
-      dto.farmName = fields.farmName;
+      dto.farmName = getFieldValue(fields.farmName);
     }
     if (fields.city) {
-      dto.city = fields.city;
+      dto.city = getFieldValue(fields.city);
     }
     if (fields.state) {
-      dto.state = fields.state;
+      dto.state = getFieldValue(fields.state);
     }
     if (fields.country) {
-      dto.country = fields.country;
+      dto.country = getFieldValue(fields.country);
     }
     if (fields.address) {
-      dto.address = fields.address;
+      dto.address = getFieldValue(fields.address);
     }
     if (fields.isActive) {
-      dto.isActive = fields.isActive === "true" || fields.isActive === "1";
+      const isActiveValue = getFieldValue(fields.isActive);
+      dto.isActive = isActiveValue === "true" || isActiveValue === "1";
     }
 
     const farmLogo = files.get("farmLogo");
-    const farmLogoFile = farmLogo?.buffer;
-    const farmLogoFilename = farmLogo?.filename;
+    // Handle both single file and array (from updated multipart helper)
+    let farmLogoFile: Buffer | undefined;
+    let farmLogoFilename: string | undefined;
+
+    if (farmLogo) {
+      if (Array.isArray(farmLogo)) {
+        // If array, take the first file
+        farmLogoFile = farmLogo[0]?.buffer;
+        farmLogoFilename = farmLogo[0]?.filename;
+      } else {
+        farmLogoFile = farmLogo.buffer;
+        farmLogoFilename = farmLogo.filename;
+      }
+    }
 
     return this.farmService.updateFarm(
       user.id,
