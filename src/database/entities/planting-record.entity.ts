@@ -49,12 +49,19 @@ export class PlantingRecord {
   @Column({ type: "varchar", nullable: true })
   unit: string | null;
 
+  @Column({ name: "is_active", type: "boolean", default: true })
+  isActive: boolean;
+
   @Column({ type: "text", nullable: true })
   notes: string | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: "created_by" })
   createdBy: User | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: "updated_by" })
+  updatedBy: User | null;
 
   @CreateDateColumn({
     name: "created_at",

@@ -48,6 +48,10 @@ export class Field {
   @JoinColumn({ name: "created_by" })
   createdBy: User | null;
 
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: "updated_by" })
+  updatedBy: User | null;
+
   @CreateDateColumn({
     name: "created_at",
     type: "timestamp with time zone",

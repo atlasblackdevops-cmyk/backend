@@ -10,6 +10,8 @@ import { FarmModule } from "./modules/farm/farm.module";
 import { GlobalModule } from "./modules/global/global.module";
 import { SharedModule } from "./modules/shared/shared.module";
 import { UsersModule } from "./modules/users/users.module";
+import { FieldsModule } from "./modules/fields/fields.module";
+import { PlantingsModule } from "./modules/plantings/plantings.module";
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { UsersModule } from "./modules/users/users.module";
     AccessModule,
     UsersModule,
     AnimalsModule,
+    FieldsModule,
+    PlantingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
