@@ -10,6 +10,7 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 import { Animal } from "./animal.entity";
+import { Field } from "./field.entity";
 import { Group } from "./group.entity";
 import { UserPermission } from "./user-permission.entity";
 import { User } from "./user.entity";
@@ -93,4 +94,7 @@ export class Farm {
 
   @OneToMany(() => Group, (group) => group.farm)
   groups: Group[];
+
+  @OneToMany(() => Field, (field) => field.farm)
+  fields: Field[];
 }
