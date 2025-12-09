@@ -6,8 +6,14 @@ import { DatabaseModule } from "./database/database.module";
 import { AccessModule } from "./modules/access/access.module";
 import { AnimalsModule } from "./modules/animals/animals.module";
 import { AuthModule } from "./modules/auth/auth.module";
+import { CropHealthNotesModule } from "./modules/crop-health-notes/crop-health-notes.module";
 import { FarmModule } from "./modules/farm/farm.module";
+import { FertilizerModule } from "./modules/fertilizer/fertilizer.module";
+import { FieldsModule } from "./modules/fields/fields.module";
 import { GlobalModule } from "./modules/global/global.module";
+import { HarvestsModule } from "./modules/harvests/harvests.module";
+import { IrrigationModule } from "./modules/irrigation/irrigation.module";
+import { PlantingsModule } from "./modules/plantings/plantings.module";
 import { SharedModule } from "./modules/shared/shared.module";
 import { UsersModule } from "./modules/users/users.module";
 
@@ -22,6 +28,12 @@ import { UsersModule } from "./modules/users/users.module";
     AccessModule,
     UsersModule,
     AnimalsModule,
+    FieldsModule,
+    PlantingsModule,
+    HarvestsModule,
+    IrrigationModule,
+    FertilizerModule,
+    CropHealthNotesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
