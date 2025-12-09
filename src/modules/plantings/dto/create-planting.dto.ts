@@ -108,4 +108,3 @@ export class CreatePlantingDto {
   @IsBoolean()
   isActive?: boolean;
 }
-

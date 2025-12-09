@@ -104,10 +104,7 @@ export class FieldsController {
     module: PermissionModule.CROPS,
     action: PermissionAction.READ,
   })
-  getField(
-    @AuthUser() user: any,
-    @Param("fieldId") fieldId: string,
-  ) {
+  getField(@AuthUser() user: any, @Param("fieldId") fieldId: string) {
     const farmId = (user as any).currentFarm?.id || (user as any).currentFarm;
     if (!farmId) {
       throw new BadRequestException("User must have a current farm selected");
@@ -149,10 +146,7 @@ export class FieldsController {
     module: PermissionModule.CROPS,
     action: PermissionAction.DELETE,
   })
-  deleteField(
-    @AuthUser() user: any,
-    @Param("fieldId") fieldId: string,
-  ) {
+  deleteField(@AuthUser() user: any, @Param("fieldId") fieldId: string) {
     const farmId = (user as any).currentFarm?.id || (user as any).currentFarm;
     if (!farmId) {
       throw new BadRequestException("User must have a current farm selected");
@@ -161,4 +155,3 @@ export class FieldsController {
     return this.fieldsService.deleteField(fieldId, farmId, user.id);
   }
 }
-

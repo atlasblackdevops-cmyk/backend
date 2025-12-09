@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 import { Field } from "./field.entity";
+import { PlantingRecord } from "./planting-record.entity";
 import { User } from "./user.entity";
 
 @Entity({ name: "irrigation_records" })
@@ -19,6 +20,10 @@ export class IrrigationRecord {
   @ManyToOne(() => Field, { nullable: false })
   @JoinColumn({ name: "field_id" })
   field: Field;
+
+  @ManyToOne(() => PlantingRecord, { nullable: true })
+  @JoinColumn({ name: "planting_record_id" })
+  plantingRecord: PlantingRecord | null;
 
   @Column({ name: "irrigation_date", type: "date", nullable: true })
   irrigationDate: Date | null;

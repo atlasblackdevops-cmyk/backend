@@ -12,4 +12,3 @@ import { PlantingsService } from "./plantings.service";
   providers: [PlantingsService],
 })
 export class PlantingsModule {}
-

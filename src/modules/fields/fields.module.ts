@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { Field } from "../../database/entities/field.entity";
 import { Farm } from "../../database/entities/farm.entity";
+import { Field } from "../../database/entities/field.entity";
 import { FieldsController } from "./fields.controller";
 import { FieldsService } from "./fields.service";
 
@@ -11,4 +11,3 @@ import { FieldsService } from "./fields.service";
   providers: [FieldsService],
 })
 export class FieldsModule {}
-

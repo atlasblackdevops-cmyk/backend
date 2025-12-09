@@ -114,4 +114,3 @@ export class AddUpdatedByAndIsActiveToFieldsAndPlantings1700000000015
     `);
   }
 }
-

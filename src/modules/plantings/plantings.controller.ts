@@ -38,10 +38,7 @@ export class PlantingsController {
     action: PermissionAction.CREATE,
     farmIdParam: "farmId",
   })
-  createPlanting(
-    @AuthUser() user: any,
-    @Body() dto: CreatePlantingDto,
-  ) {
+  createPlanting(@AuthUser() user: any, @Body() dto: CreatePlantingDto) {
     const fallbackFarmId =
       (user as any).currentFarm?.id || (user as any).currentFarm;
     const farmId = dto.farmId ?? fallbackFarmId;
@@ -86,10 +83,7 @@ export class PlantingsController {
     module: PermissionModule.CROPS,
     action: PermissionAction.READ,
   })
-  getPlanting(
-    @AuthUser() user: any,
-    @Param("plantingId") plantingId: string,
-  ) {
+  getPlanting(@AuthUser() user: any, @Param("plantingId") plantingId: string) {
     const farmId = (user as any).currentFarm?.id || (user as any).currentFarm;
     if (!farmId) {
       throw new BadRequestException("User must have a current farm selected");
@@ -149,11 +143,6 @@ export class PlantingsController {
       throw new BadRequestException("User must have a current farm selected");
     }
 
-    return this.plantingsService.deletePlanting(
-      plantingId,
-      farmId,
-      user.id,
-    );
+    return this.plantingsService.deletePlanting(plantingId, farmId, user.id);
   }
 }
-

@@ -99,4 +99,3 @@ export class ListPlantingsDto {
   @IsBoolean()
   isActive?: boolean;
 }
-

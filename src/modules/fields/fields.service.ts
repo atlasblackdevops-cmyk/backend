@@ -6,8 +6,8 @@ import {
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { Field } from "../../database/entities/field.entity";
 import { Farm } from "../../database/entities/farm.entity";
+import { Field } from "../../database/entities/field.entity";
 import { CreateFieldDto } from "./dto/create-field.dto";
 import { ListFieldsDto } from "./dto/list-fields.dto";
 import { UpdateFieldDto } from "./dto/update-field.dto";
@@ -162,7 +162,9 @@ export class FieldsService {
     }
 
     if (field.farm.id !== farmId) {
-      throw new ForbiddenException("Field does not belong to your current farm");
+      throw new ForbiddenException(
+        "Field does not belong to your current farm",
+      );
     }
 
     return {
@@ -189,7 +191,9 @@ export class FieldsService {
     }
 
     if (field.farm.id !== farmId) {
-      throw new ForbiddenException("Field does not belong to your current farm");
+      throw new ForbiddenException(
+        "Field does not belong to your current farm",
+      );
     }
 
     if (dto.fieldName !== undefined) {
@@ -251,7 +255,9 @@ export class FieldsService {
     }
 
     if (field.farm.id !== farmId) {
-      throw new ForbiddenException("Field does not belong to your current farm");
+      throw new ForbiddenException(
+        "Field does not belong to your current farm",
+      );
     }
 
     field.deletedAt = new Date();
@@ -266,4 +272,3 @@ export class FieldsService {
     return { message: "Field deleted successfully" };
   }
 }
-

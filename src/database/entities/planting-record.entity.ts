@@ -11,6 +11,7 @@ import {
 } from "typeorm";
 import { Field } from "./field.entity";
 import { Harvest } from "./harvest.entity";
+import { IrrigationRecord } from "./irrigation-record.entity";
 import { User } from "./user.entity";
 
 @Entity({ name: "planting_records" })
@@ -86,4 +87,10 @@ export class PlantingRecord {
 
   @OneToMany(() => Harvest, (harvest) => harvest.plantingRecord)
   harvests: Harvest[];
+
+  @OneToMany(
+    () => IrrigationRecord,
+    (irrigationRecord) => irrigationRecord.plantingRecord,
+  )
+  irrigationRecords: IrrigationRecord[];
 }

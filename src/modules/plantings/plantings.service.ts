@@ -59,11 +59,7 @@ export class PlantingsService {
     return parsed;
   }
 
-  async createPlanting(
-    userId: string,
-    farmId: string,
-    dto: CreatePlantingDto,
-  ) {
+  async createPlanting(userId: string, farmId: string, dto: CreatePlantingDto) {
     const farmExists = await this.farmRepo.exist({ where: { id: farmId } });
     if (!farmExists) {
       throw new NotFoundException("Farm not found");
@@ -284,9 +280,7 @@ export class PlantingsService {
 
     if (dto.quantityPlanted !== undefined) {
       planting.quantityPlanted =
-        dto.quantityPlanted === null
-          ? null
-          : dto.quantityPlanted.toString();
+        dto.quantityPlanted === null ? null : dto.quantityPlanted.toString();
     }
 
     if (dto.quantityUnit !== undefined) {
@@ -356,4 +350,3 @@ export class PlantingsService {
     return { message: "Planting deleted successfully" };
   }
 }
-
