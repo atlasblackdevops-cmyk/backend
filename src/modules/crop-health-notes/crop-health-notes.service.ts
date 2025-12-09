@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { DataSource, Repository } from "typeorm";
+import { DataSource, In, Repository } from "typeorm";
 import { CropHealthNoteImage } from "../../database/entities/crop-health-note-image.entity";
 import { CropHealthNote } from "../../database/entities/crop-health-note.entity";
 import { Farm } from "../../database/entities/farm.entity";
@@ -343,160 +343,231 @@ export class CropHealthNotesService {
       );
     }
 
-    // Update field if provided
-    if (dto.fieldId !== undefined) {
-      const field = await this.fieldRepo.findOne({
-        where: {
-          id: dto.fieldId,
-          deletedAt: null,
-          farm: { id: userFarmId },
-        },
-      });
+    // Start transaction for all operations
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-      if (!field) {
-        throw new NotFoundException(
-          "Field not found or does not belong to your current farm",
-        );
+    const imagesToDeleteFromS3: string[] = [];
+    const uploadedImageKeys: string[] = [];
+
+    try {
+      // Reload note within transaction to ensure it's properly managed
+      const noteInTransaction = await queryRunner.manager.findOne(
+        CropHealthNote,
+        { where: { id: note.id } },
+      );
+
+      if (!noteInTransaction) {
+        throw new NotFoundException("Crop health note not found");
       }
 
-      note.field = field;
-    }
+      // Update note fields if provided (using transaction-managed entity)
+      if (dto.fieldId !== undefined && note.field?.id !== dto.fieldId) {
+        const field = await this.fieldRepo.findOne({
+          where: {
+            id: dto.fieldId,
+            deletedAt: null,
+            farm: { id: userFarmId },
+          },
+        });
 
-    // Update note date if provided
-    if (dto.noteDate !== undefined) {
-      if (dto.noteDate) {
-        const parsedDate = new Date(dto.noteDate);
-        if (Number.isNaN(parsedDate.getTime())) {
-          throw new BadRequestException("Invalid note date");
-        }
-        note.noteDate = parsedDate;
-      } else {
-        note.noteDate = null;
-      }
-    }
-
-    // Update other fields
-    if (dto.healthStatus !== undefined) {
-      note.healthStatus = dto.healthStatus ?? null;
-    }
-
-    if (dto.description !== undefined) {
-      note.description = dto.description ?? null;
-    }
-
-    if (dto.actionTaken !== undefined) {
-      note.actionTaken = dto.actionTaken ?? null;
-    }
-
-    // Handle image replacement if files are provided
-    const oldImageKeys: string[] = [];
-    if (files && files.length > 0) {
-      // Store old image keys for cleanup
-      if (note.images) {
-        oldImageKeys.push(...note.images.map((img) => img.imageKey));
-      }
-
-      // Normalize image notes array
-      const normalizedNotes: (string | null)[] = [];
-      if (imageNotes && imageNotes.length > 0) {
-        for (let i = 0; i < files.length; i++) {
-          const noteText = imageNotes[i]?.trim() || null;
-          normalizedNotes.push(noteText);
-        }
-      } else {
-        normalizedNotes.push(...new Array(files.length).fill(null));
-      }
-
-      // Upload new images to S3
-      const uploadedImageKeys: string[] = [];
-      try {
-        for (const file of files) {
-          const imageKey = await this.s3Service.uploadFile(
-            file.buffer,
-            file.filename,
-            "crop-health-notes",
+        if (!field) {
+          throw new NotFoundException(
+            "Field not found or does not belong to your current farm",
           );
-          uploadedImageKeys.push(imageKey);
         }
-      } catch (error) {
-        // Clean up uploaded images if any failed
-        for (const key of uploadedImageKeys) {
-          try {
-            await this.s3Service.deleteFile(key);
-          } catch (deleteError) {
-            console.error(`Failed to delete S3 file ${key}:`, deleteError);
-          }
-        }
-        throw new BadRequestException(
-          `Failed to upload images: ${error.message || "Unknown error"}`,
-        );
+
+        noteInTransaction.field = field;
       }
 
-      // Start transaction
-      const queryRunner = this.dataSource.createQueryRunner();
-      await queryRunner.connect();
-      await queryRunner.startTransaction();
+      // Update note date if provided
+      if (dto.noteDate !== undefined) {
+        if (dto.noteDate) {
+          const parsedDate = new Date(dto.noteDate);
+          if (Number.isNaN(parsedDate.getTime())) {
+            throw new BadRequestException("Invalid note date");
+          }
+          noteInTransaction.noteDate = parsedDate;
+        } else {
+          noteInTransaction.noteDate = null;
+        }
+      }
 
-      try {
-        // Soft delete old images
-        if (note.images && note.images.length > 0) {
-          for (const image of note.images) {
-            image.deletedAt = new Date();
+      // Update other fields
+      if (dto.healthStatus !== undefined) {
+        noteInTransaction.healthStatus = dto.healthStatus ?? null;
+      }
+
+      if (dto.description !== undefined) {
+        noteInTransaction.description = dto.description ?? null;
+      }
+
+      if (dto.actionTaken !== undefined) {
+        noteInTransaction.actionTaken = dto.actionTaken ?? null;
+      }
+
+      // Save note updates first (before creating images)
+      const actor = { id: userId } as User;
+      noteInTransaction.updatedBy = actor;
+      await queryRunner.manager.save(noteInTransaction);
+
+      // 1. Handle deletion of specific images
+      if (dto.deleteImageIds && dto.deleteImageIds.length > 0) {
+        const imagesToDelete = await queryRunner.manager.find(
+          CropHealthNoteImage,
+          {
+            where: {
+              id: In(dto.deleteImageIds),
+              cropHealthNote: { id: note.id },
+              deletedAt: null,
+            },
+          },
+        );
+
+        // Verify all images belong to this note
+        const foundIds = new Set(imagesToDelete.map((img) => img.id));
+        const invalidIds = dto.deleteImageIds.filter((id) => !foundIds.has(id));
+        if (invalidIds.length > 0) {
+          throw new BadRequestException(
+            `Some image IDs do not belong to this note: ${invalidIds.join(", ")}`,
+          );
+        }
+
+        // Store S3 keys for cleanup
+        imagesToDeleteFromS3.push(...imagesToDelete.map((img) => img.imageKey));
+
+        // Soft delete images
+        for (const image of imagesToDelete) {
+          image.deletedAt = new Date();
+          await queryRunner.manager.save(image);
+        }
+      }
+
+      // 2. Handle updating notes for existing images
+      if (dto.existingImageNotes && dto.existingImageNotes.length > 0) {
+        const imageIdsToUpdate = dto.existingImageNotes.map(
+          (item) => item.imageId,
+        );
+        const existingImages = await queryRunner.manager.find(
+          CropHealthNoteImage,
+          {
+            where: {
+              id: In(imageIdsToUpdate),
+              cropHealthNote: { id: note.id },
+              deletedAt: null,
+            },
+          },
+        );
+
+        // Verify all images belong to this note
+        const foundIds = new Set(existingImages.map((img) => img.id));
+        const invalidIds = imageIdsToUpdate.filter((id) => !foundIds.has(id));
+        if (invalidIds.length > 0) {
+          throw new BadRequestException(
+            `Some image IDs do not belong to this note: ${invalidIds.join(", ")}`,
+          );
+        }
+
+        // Create a map for quick lookup
+        const updateMap = new Map(
+          dto.existingImageNotes.map((item) => [item.imageId, item.notes]),
+        );
+
+        // Update notes for existing images
+        for (const image of existingImages) {
+          if (updateMap.has(image.id)) {
+            const newNotes = updateMap.get(image.id);
+            image.notes =
+              newNotes !== undefined && newNotes !== null && newNotes.trim()
+                ? newNotes.trim()
+                : null;
             await queryRunner.manager.save(image);
           }
         }
+      }
 
-        // Create new image records
+      // 3. Handle adding new images
+      if (files && files.length > 0) {
+        // Normalize image notes array
+        const normalizedNotes: (string | null)[] = [];
+        if (imageNotes && imageNotes.length > 0) {
+          for (let i = 0; i < files.length; i++) {
+            const noteText = imageNotes[i]?.trim() || null;
+            normalizedNotes.push(noteText);
+          }
+        } else {
+          normalizedNotes.push(...new Array(files.length).fill(null));
+        }
+
+        // Upload new images to S3
+        try {
+          for (const file of files) {
+            const imageKey = await this.s3Service.uploadFile(
+              file.buffer,
+              file.filename,
+              "crop-health-notes",
+            );
+            uploadedImageKeys.push(imageKey);
+          }
+        } catch (error) {
+          // Clean up uploaded images if any failed
+          for (const key of uploadedImageKeys) {
+            try {
+              await this.s3Service.deleteFile(key);
+            } catch (deleteError) {
+              console.error(`Failed to delete S3 file ${key}:`, deleteError);
+            }
+          }
+          throw new BadRequestException(
+            `Failed to upload images: ${error.message || "Unknown error"}`,
+          );
+        }
+
+        // Create new image records using transaction-managed note
         const imageRecords = uploadedImageKeys.map((imageKey, index) => {
           return queryRunner.manager.create(CropHealthNoteImage, {
-            cropHealthNote: note,
+            cropHealthNote: noteInTransaction,
             imageKey,
             notes: normalizedNotes[index] ?? null,
           });
         });
 
         await queryRunner.manager.save(imageRecords);
-
-        // Update note
-        const actor = { id: userId } as User;
-        note.updatedBy = actor;
-        await queryRunner.manager.save(note);
-
-        // Commit transaction
-        await queryRunner.commitTransaction();
-
-        // Delete old images from S3 after successful DB update
-        for (const key of oldImageKeys) {
-          try {
-            await this.s3Service.deleteFile(key);
-          } catch (deleteError) {
-            console.error(`Failed to delete old S3 file ${key}:`, deleteError);
-          }
-        }
-      } catch (error) {
-        // Rollback transaction
-        await queryRunner.rollbackTransaction();
-
-        // Clean up newly uploaded S3 files
-        for (const key of uploadedImageKeys) {
-          try {
-            await this.s3Service.deleteFile(key);
-          } catch (deleteError) {
-            console.error(`Failed to delete S3 file ${key}:`, deleteError);
-          }
-        }
-
-        throw new BadRequestException(
-          `Failed to update crop health note: ${error.message || "Unknown error"}`,
-        );
-      } finally {
-        await queryRunner.release();
       }
-    } else {
-      // No new images, just update the note
-      const actor = { id: userId } as User;
-      note.updatedBy = actor;
-      await this.cropHealthNoteRepo.save(note);
+
+      // Commit transaction
+      await queryRunner.commitTransaction();
+
+      // Delete images from S3 after successful DB update
+      for (const key of imagesToDeleteFromS3) {
+        try {
+          await this.s3Service.deleteFile(key);
+        } catch (deleteError) {
+          console.error(`Failed to delete S3 file ${key}:`, deleteError);
+        }
+      }
+    } catch (error) {
+      // Rollback transaction
+      await queryRunner.rollbackTransaction();
+
+      // Clean up newly uploaded S3 files
+      for (const key of uploadedImageKeys) {
+        try {
+          await this.s3Service.deleteFile(key);
+        } catch (deleteError) {
+          console.error(`Failed to delete S3 file ${key}:`, deleteError);
+        }
+      }
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException(
+        `Failed to update crop health note: ${error.message || "Unknown error"}`,
+      );
+    } finally {
+      await queryRunner.release();
     }
 
     // Fetch updated note with relations
