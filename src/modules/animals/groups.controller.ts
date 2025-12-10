@@ -288,13 +288,31 @@ export class GroupsController {
                       name: {
                         type: "string",
                       },
-                      species: {
-                        type: "string",
+                      speciesRelation: {
+                        type: "object",
                         nullable: true,
+                        properties: {
+                          id: { type: "string", format: "uuid" },
+                          name: { type: "string", example: "Cattle" },
+                          slug: { type: "string", example: "cattle" },
+                        },
                       },
-                      breed: {
-                        type: "string",
+                      breedRelation: {
+                        type: "object",
                         nullable: true,
+                        properties: {
+                          id: { type: "string", format: "uuid" },
+                          name: { type: "string", example: "Holstein" },
+                          slug: { type: "string", example: "holstein" },
+                          species: {
+                            type: "object",
+                            properties: {
+                              id: { type: "string", format: "uuid" },
+                              name: { type: "string", example: "Cattle" },
+                              slug: { type: "string", example: "cattle" },
+                            },
+                          },
+                        },
                       },
                       gender: {
                         type: "string",
@@ -438,13 +456,31 @@ export class GroupsController {
                       name: {
                         type: "string",
                       },
-                      species: {
-                        type: "string",
+                      speciesRelation: {
+                        type: "object",
                         nullable: true,
+                        properties: {
+                          id: { type: "string", format: "uuid" },
+                          name: { type: "string", example: "Cattle" },
+                          slug: { type: "string", example: "cattle" },
+                        },
                       },
-                      breed: {
-                        type: "string",
+                      breedRelation: {
+                        type: "object",
                         nullable: true,
+                        properties: {
+                          id: { type: "string", format: "uuid" },
+                          name: { type: "string", example: "Holstein" },
+                          slug: { type: "string", example: "holstein" },
+                          species: {
+                            type: "object",
+                            properties: {
+                              id: { type: "string", format: "uuid" },
+                              name: { type: "string", example: "Cattle" },
+                              slug: { type: "string", example: "cattle" },
+                            },
+                          },
+                        },
                       },
                       gender: {
                         type: "string",

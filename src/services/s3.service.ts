@@ -195,6 +195,8 @@ export class S3Service {
         else if (contentType.includes("webp")) extension = ".webp";
         else if (contentType.includes("jpeg") || contentType.includes("jpg"))
           extension = ".jpg";
+        else if (contentType.includes("heic")) extension = ".heic";
+        else if (contentType.includes("heif")) extension = ".heif";
       } else {
         // Try to extract from URL
         const urlPath = new URL(imageUrl).pathname;
@@ -231,6 +233,9 @@ export class S3Service {
       ".gif": "image/gif",
       ".webp": "image/webp",
       ".svg": "image/svg+xml",
+      ".heic": "image/heic",
+      ".heif": "image/heif",
+      ".hif": "image/heif",
       ".pdf": "application/pdf",
     };
 

@@ -13,7 +13,9 @@ import { AnimalFeed } from "./animal-feed.entity";
 import { AnimalGroup } from "./animal-group.entity";
 import { AnimalHealthRecord } from "./animal-health-record.entity";
 import { AnimalWeightRecord } from "./animal-weight-record.entity";
+import { Breed } from "./breed.entity";
 import { Farm } from "./farm.entity";
+import { Species } from "./species.entity";
 import { User } from "./user.entity";
 
 @Entity({ name: "animals" })
@@ -28,11 +30,13 @@ export class Animal {
   @Column({ type: "varchar" })
   name: string;
 
-  @Column({ type: "varchar", nullable: true })
-  species: string | null;
+  @ManyToOne(() => Species, { nullable: true })
+  @JoinColumn({ name: "species_id" })
+  speciesRelation: Species | null;
 
-  @Column({ type: "varchar", nullable: true })
-  breed: string | null;
+  @ManyToOne(() => Breed, { nullable: true })
+  @JoinColumn({ name: "breed_id" })
+  breedRelation: Breed | null;
 
   @Column({ type: "varchar", nullable: true })
   gender: string | null;
