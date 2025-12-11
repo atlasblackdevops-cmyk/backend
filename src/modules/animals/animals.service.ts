@@ -38,7 +38,7 @@ export class AnimalsService {
     imageFilename?: string,
   ) {
     const farm = await this.farmRepo.findOne({
-      where: { id: farmId },
+      where: { id: farmId, deletedAt: null, isActive: true },
     });
 
     if (!farm) {
@@ -69,7 +69,7 @@ export class AnimalsService {
 
     // Validate and get species (required)
     const species = await this.speciesRepo.findOne({
-      where: { id: dto.speciesId },
+      where: { id: dto.speciesId, deletedAt: null },
     });
     if (!species) {
       throw new BadRequestException("Invalid species ID");
@@ -77,15 +77,22 @@ export class AnimalsService {
 
     // Validate and get breed (required)
     const breed = await this.breedRepo.findOne({
-      where: { id: dto.breedId },
+      where: { id: dto.breedId, deletedAt: null },
       relations: ["species"],
     });
     if (!breed) {
       throw new BadRequestException("Invalid breed ID");
     }
 
-    // Validate breed belongs to species
-    if (breed.species.id !== species.id) {
+    // Validate breed species relation is loaded
+    if (!breed.species) {
+      throw new BadRequestException(
+        "Breed species relation not found. Please contact support.",
+      );
+    }
+
+    // Validate breed belongs to species (compare as strings to avoid type issues)
+    if (String(breed.species.id) !== String(species.id)) {
       throw new BadRequestException(
         "Breed does not belong to the selected species",
       );
@@ -129,7 +136,9 @@ export class AnimalsService {
   }
 
   async listAnimals(farmId: string, query: ListAnimalsDto) {
-    const farmExists = await this.farmRepo.exist({ where: { id: farmId } });
+    const farmExists = await this.farmRepo.exist({
+      where: { id: farmId, deletedAt: null, isActive: true },
+    });
     if (!farmExists) {
       throw new NotFoundException("Farm not found");
     }
@@ -271,7 +280,7 @@ export class AnimalsService {
 
     // Update species (required)
     const species = await this.speciesRepo.findOne({
-      where: { id: dto.speciesId },
+      where: { id: dto.speciesId, deletedAt: null },
     });
     if (!species) {
       throw new BadRequestException("Invalid species ID");
@@ -280,15 +289,22 @@ export class AnimalsService {
 
     // Update breed (required)
     const breed = await this.breedRepo.findOne({
-      where: { id: dto.breedId },
+      where: { id: dto.breedId, deletedAt: null },
       relations: ["species"],
     });
     if (!breed) {
       throw new BadRequestException("Invalid breed ID");
     }
 
-    // Validate breed belongs to species
-    if (breed.species.id !== species.id) {
+    // Validate breed species relation is loaded
+    if (!breed.species) {
+      throw new BadRequestException(
+        "Breed species relation not found. Please contact support.",
+      );
+    }
+
+    // Validate breed belongs to species (compare as strings to avoid type issues)
+    if (String(breed.species.id) !== String(species.id)) {
       throw new BadRequestException(
         "Breed does not belong to the selected species",
       );
