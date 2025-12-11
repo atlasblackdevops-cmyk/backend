@@ -24,7 +24,9 @@
     "migration:generate": "typeorm migration:generate -d ./src/config/typeorm.ts ./src/database/migrations",
     "migration:revert": "typeorm migration:revert -d ./dist/config/typeorm.js",
     "seed:superadmin": "node dist/commands/index.js seed-super-admin",
-    "seed:permissions": "node dist/commands/index.js seed-permissions"
+    "seed:permissions": "node dist/commands/index.js seed-permissions",
+    "seed:species": "node dist/commands/index.js seed-species",
+    "seed:breeds": "node dist/commands/index.js seed-breeds"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.940.0",

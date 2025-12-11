@@ -49,26 +49,28 @@ export class AnimalsController {
   @ApiBody({
     schema: {
       type: "object",
-      required: ["name"],
+      required: ["name", "speciesId", "breedId", "gender"],
       properties: {
         name: {
           type: "string",
           description: "Display name of the animal",
           example: "Bessie",
         },
-        species: {
+        speciesId: {
           type: "string",
-          description: "Animal species",
-          example: "Cow",
+          format: "uuid",
+          description: "Animal species ID (required)",
+          example: "123e4567-e89b-12d3-a456-426614174000",
         },
-        breed: {
+        breedId: {
           type: "string",
-          description: "Animal breed",
-          example: "Holstein",
+          format: "uuid",
+          description: "Animal breed ID (required)",
+          example: "123e4567-e89b-12d3-a456-426614174001",
         },
         gender: {
           type: "string",
-          description: "Animal gender",
+          description: "Animal gender/sex (required)",
           example: "Female",
         },
         birthdate: {
@@ -107,8 +109,32 @@ export class AnimalsController {
                   example: "123e4567-e89b-12d3-a456-426614174000",
                 },
                 name: { type: "string", example: "Bessie" },
-                species: { type: "string", example: "Cow", nullable: true },
-                breed: { type: "string", example: "Holstein", nullable: true },
+                speciesRelation: {
+                  type: "object",
+                  nullable: true,
+                  properties: {
+                    id: { type: "string", format: "uuid" },
+                    name: { type: "string", example: "Cattle" },
+                    slug: { type: "string", example: "cattle" },
+                  },
+                },
+                breedRelation: {
+                  type: "object",
+                  nullable: true,
+                  properties: {
+                    id: { type: "string", format: "uuid" },
+                    name: { type: "string", example: "Holstein" },
+                    slug: { type: "string", example: "holstein" },
+                    species: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", format: "uuid" },
+                        name: { type: "string", example: "Cattle" },
+                        slug: { type: "string", example: "cattle" },
+                      },
+                    },
+                  },
+                },
                 gender: {
                   type: "string",
                   example: "Female",
@@ -245,8 +271,8 @@ export class AnimalsController {
 
     const dto: CreateAnimalDto = {
       name: getFieldValue(fields.name) ?? "",
-      species: getFieldValue(fields.species),
-      breed: getFieldValue(fields.breed),
+      speciesId: getFieldValue(fields.speciesId),
+      breedId: getFieldValue(fields.breedId),
       gender: getFieldValue(fields.gender),
       birthdate: getFieldValue(fields.birthdate),
     };
@@ -310,11 +336,31 @@ export class AnimalsController {
                     example: "123e4567-e89b-12d3-a456-426614174000",
                   },
                   name: { type: "string", example: "Bessie" },
-                  species: { type: "string", example: "Cow", nullable: true },
-                  breed: {
-                    type: "string",
-                    example: "Holstein",
+                  speciesRelation: {
+                    type: "object",
                     nullable: true,
+                    properties: {
+                      id: { type: "string", format: "uuid" },
+                      name: { type: "string", example: "Cattle" },
+                      slug: { type: "string", example: "cattle" },
+                    },
+                  },
+                  breedRelation: {
+                    type: "object",
+                    nullable: true,
+                    properties: {
+                      id: { type: "string", format: "uuid" },
+                      name: { type: "string", example: "Holstein" },
+                      slug: { type: "string", example: "holstein" },
+                      species: {
+                        type: "object",
+                        properties: {
+                          id: { type: "string", format: "uuid" },
+                          name: { type: "string", example: "Cattle" },
+                          slug: { type: "string", example: "cattle" },
+                        },
+                      },
+                    },
                   },
                   gender: {
                     type: "string",
@@ -476,11 +522,31 @@ export class AnimalsController {
                   example: "123e4567-e89b-12d3-a456-426614174000",
                 },
                 name: { type: "string", example: "Bessie" },
-                species: { type: "string", example: "Cow", nullable: true },
-                breed: {
-                  type: "string",
-                  example: "Holstein",
+                speciesRelation: {
+                  type: "object",
                   nullable: true,
+                  properties: {
+                    id: { type: "string", format: "uuid" },
+                    name: { type: "string", example: "Cattle" },
+                    slug: { type: "string", example: "cattle" },
+                  },
+                },
+                breedRelation: {
+                  type: "object",
+                  nullable: true,
+                  properties: {
+                    id: { type: "string", format: "uuid" },
+                    name: { type: "string", example: "Holstein" },
+                    slug: { type: "string", example: "holstein" },
+                    species: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", format: "uuid" },
+                        name: { type: "string", example: "Cattle" },
+                        slug: { type: "string", example: "cattle" },
+                      },
+                    },
+                  },
                 },
                 gender: {
                   type: "string",
@@ -609,30 +675,33 @@ export class AnimalsController {
   @ApiOperation({
     summary: "Update an animal",
     description:
-      "Updates an existing animal record. The animal must belong to the user's current farm. All fields are optional. Requires LIVESTOCK:UPDATE permission. Image upload is optional.",
+      "Updates an existing animal record. The animal must belong to the user's current farm. Name, speciesId, breedId, and gender are required fields. Requires LIVESTOCK:UPDATE permission. Image upload is optional.",
   })
   @ApiBody({
     schema: {
       type: "object",
+      required: ["name", "speciesId", "breedId", "gender"],
       properties: {
         name: {
           type: "string",
           description: "Display name of the animal",
           example: "Bessie",
         },
-        species: {
+        speciesId: {
           type: "string",
-          description: "Animal species",
-          example: "Cow",
+          format: "uuid",
+          description: "Animal species ID (required)",
+          example: "123e4567-e89b-12d3-a456-426614174000",
         },
-        breed: {
+        breedId: {
           type: "string",
-          description: "Animal breed",
-          example: "Holstein",
+          format: "uuid",
+          description: "Animal breed ID (required)",
+          example: "123e4567-e89b-12d3-a456-426614174001",
         },
         gender: {
           type: "string",
-          description: "Animal gender",
+          description: "Animal gender/sex (required)",
           example: "Female",
         },
         birthdate: {
@@ -671,8 +740,32 @@ export class AnimalsController {
                   example: "123e4567-e89b-12d3-a456-426614174000",
                 },
                 name: { type: "string", example: "Bessie" },
-                species: { type: "string", example: "Cow", nullable: true },
-                breed: { type: "string", example: "Holstein", nullable: true },
+                speciesRelation: {
+                  type: "object",
+                  nullable: true,
+                  properties: {
+                    id: { type: "string", format: "uuid" },
+                    name: { type: "string", example: "Cattle" },
+                    slug: { type: "string", example: "cattle" },
+                  },
+                },
+                breedRelation: {
+                  type: "object",
+                  nullable: true,
+                  properties: {
+                    id: { type: "string", format: "uuid" },
+                    name: { type: "string", example: "Holstein" },
+                    slug: { type: "string", example: "holstein" },
+                    species: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", format: "uuid" },
+                        name: { type: "string", example: "Cattle" },
+                        slug: { type: "string", example: "cattle" },
+                      },
+                    },
+                  },
+                },
                 gender: {
                   type: "string",
                   example: "Female",
@@ -813,8 +906,8 @@ export class AnimalsController {
 
     const dto: UpdateAnimalDto = {
       name: getFieldValue(fields.name),
-      species: getFieldValue(fields.species),
-      breed: getFieldValue(fields.breed),
+      speciesId: getFieldValue(fields.speciesId),
+      breedId: getFieldValue(fields.breedId),
       gender: getFieldValue(fields.gender),
       birthdate: getFieldValue(fields.birthdate),
     };

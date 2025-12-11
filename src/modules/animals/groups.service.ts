@@ -409,6 +409,9 @@ export class GroupsService {
     const animalGroups = await this.animalGroupRepo
       .createQueryBuilder("animalGroup")
       .innerJoinAndSelect("animalGroup.animal", "animal")
+      .leftJoinAndSelect("animal.speciesRelation", "species")
+      .leftJoinAndSelect("animal.breedRelation", "breed")
+      .leftJoinAndSelect("breed.species", "breedSpecies")
       .where("animalGroup.group.id = :groupId", { groupId })
       .andWhere("animalGroup.deletedAt IS NULL")
       .andWhere("animal.deletedAt IS NULL")
@@ -418,11 +421,15 @@ export class GroupsService {
         "animalGroup.createdAt",
         "animal.id",
         "animal.name",
-        "animal.species",
-        "animal.breed",
         "animal.gender",
         "animal.birthdate",
         "animal.photo",
+        "species.id",
+        "species.name",
+        "species.slug",
+        "breed.id",
+        "breed.name",
+        "breed.slug",
       ])
       .orderBy("animal.name", "ASC")
       .getMany();
@@ -705,6 +712,9 @@ export class GroupsService {
     const qb = this.animalGroupRepo
       .createQueryBuilder("animalGroup")
       .innerJoinAndSelect("animalGroup.animal", "animal")
+      .leftJoinAndSelect("animal.speciesRelation", "species")
+      .leftJoinAndSelect("animal.breedRelation", "breed")
+      .leftJoinAndSelect("breed.species", "breedSpecies")
       .where("animalGroup.group.id = :groupId", { groupId })
       .andWhere("animalGroup.deletedAt IS NULL")
       .andWhere("animal.deletedAt IS NULL")
@@ -714,11 +724,15 @@ export class GroupsService {
         "animalGroup.createdAt",
         "animal.id",
         "animal.name",
-        "animal.species",
-        "animal.breed",
         "animal.gender",
         "animal.birthdate",
         "animal.photo",
+        "species.id",
+        "species.name",
+        "species.slug",
+        "breed.id",
+        "breed.name",
+        "breed.slug",
       ])
       .orderBy("animal.name", "ASC");
 

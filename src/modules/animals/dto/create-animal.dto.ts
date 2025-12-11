@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from "class-validator";
 
@@ -17,32 +18,28 @@ export class CreateAnimalDto {
   @MaxLength(255)
   name: string;
 
-  @ApiPropertyOptional({
-    description: "Animal species",
-    maxLength: 255,
+  @ApiProperty({
+    description: "Animal species ID (UUID)",
   })
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  species?: string;
+  @IsUUID()
+  @IsNotEmpty()
+  speciesId: string;
 
-  @ApiPropertyOptional({
-    description: "Animal breed",
-    maxLength: 255,
+  @ApiProperty({
+    description: "Animal breed ID (UUID)",
   })
-  @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  breed?: string;
+  @IsUUID()
+  @IsNotEmpty()
+  breedId: string;
 
-  @ApiPropertyOptional({
-    description: "Animal gender",
+  @ApiProperty({
+    description: "Animal gender/sex",
     maxLength: 50,
   })
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   @MaxLength(50)
-  gender?: string;
+  gender: string;
 
   @ApiPropertyOptional({
     description: "Birthdate in ISO format (YYYY-MM-DD)",

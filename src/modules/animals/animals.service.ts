@@ -7,7 +7,9 @@ import {
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Animal } from "../../database/entities/animal.entity";
+import { Breed } from "../../database/entities/breed.entity";
 import { Farm } from "../../database/entities/farm.entity";
+import { Species } from "../../database/entities/species.entity";
 import { User } from "../../database/entities/user.entity";
 import { S3Service } from "../../services/s3.service";
 import { CreateAnimalDto } from "./dto/create-animal.dto";
@@ -21,6 +23,10 @@ export class AnimalsService {
     private readonly animalRepo: Repository<Animal>,
     @InjectRepository(Farm)
     private readonly farmRepo: Repository<Farm>,
+    @InjectRepository(Species)
+    private readonly speciesRepo: Repository<Species>,
+    @InjectRepository(Breed)
+    private readonly breedRepo: Repository<Breed>,
     private readonly s3Service: S3Service,
   ) {}
 
@@ -32,7 +38,7 @@ export class AnimalsService {
     imageFilename?: string,
   ) {
     const farm = await this.farmRepo.findOne({
-      where: { id: farmId },
+      where: { id: farmId, deletedAt: null, isActive: true },
     });
 
     if (!farm) {
@@ -61,14 +67,45 @@ export class AnimalsService {
       );
     }
 
+    // Validate and get species (required)
+    const species = await this.speciesRepo.findOne({
+      where: { id: dto.speciesId, deletedAt: null },
+    });
+    if (!species) {
+      throw new BadRequestException("Invalid species ID");
+    }
+
+    // Validate and get breed (required)
+    const breed = await this.breedRepo.findOne({
+      where: { id: dto.breedId, deletedAt: null },
+      relations: ["species"],
+    });
+    if (!breed) {
+      throw new BadRequestException("Invalid breed ID");
+    }
+
+    // Validate breed species relation is loaded
+    if (!breed.species) {
+      throw new BadRequestException(
+        "Breed species relation not found. Please contact support.",
+      );
+    }
+
+    // Validate breed belongs to species (compare as strings to avoid type issues)
+    if (String(breed.species.id) !== String(species.id)) {
+      throw new BadRequestException(
+        "Breed does not belong to the selected species",
+      );
+    }
+
     const actor = { id: userId } as User;
 
     const animal = this.animalRepo.create({
       farm,
       name: dto.name.trim(),
-      species: dto.species ?? null,
-      breed: dto.breed ?? null,
-      gender: dto.gender ?? null,
+      speciesRelation: species,
+      breedRelation: breed,
+      gender: dto.gender.trim(),
       birthdate,
       photo: photoUrl,
       createdBy: actor,
@@ -80,7 +117,14 @@ export class AnimalsService {
 
     const createdAnimal = await this.animalRepo.findOne({
       where: { id: animal.id },
-      relations: ["farm", "createdBy", "updatedBy"],
+      relations: [
+        "farm",
+        "createdBy",
+        "updatedBy",
+        "speciesRelation",
+        "breedRelation",
+        "breedRelation.species",
+      ],
     });
 
     return {
@@ -92,7 +136,9 @@ export class AnimalsService {
   }
 
   async listAnimals(farmId: string, query: ListAnimalsDto) {
-    const farmExists = await this.farmRepo.exist({ where: { id: farmId } });
+    const farmExists = await this.farmRepo.exist({
+      where: { id: farmId, deletedAt: null, isActive: true },
+    });
     if (!farmExists) {
       throw new NotFoundException("Farm not found");
     }
@@ -106,6 +152,9 @@ export class AnimalsService {
       .leftJoinAndSelect("animal.farm", "farm")
       .leftJoinAndSelect("animal.createdBy", "createdBy")
       .leftJoinAndSelect("animal.updatedBy", "updatedBy")
+      .leftJoinAndSelect("animal.speciesRelation", "species")
+      .leftJoinAndSelect("animal.breedRelation", "breed")
+      .leftJoinAndSelect("breed.species", "breedSpecies")
       .where("farm.id = :farmId", { farmId })
       .andWhere("animal.deletedAt IS NULL")
       .orderBy("animal.createdAt", "DESC");
@@ -113,8 +162,8 @@ export class AnimalsService {
     if (query.search) {
       qb.andWhere(
         `(LOWER(animal.name) LIKE LOWER(:search)
-          OR LOWER(animal.species) LIKE LOWER(:search)
-          OR LOWER(animal.breed) LIKE LOWER(:search))`,
+          OR LOWER(species.name) LIKE LOWER(:search)
+          OR LOWER(breed.name) LIKE LOWER(:search))`,
         { search: `%${query.search}%` },
       );
     }
@@ -157,7 +206,15 @@ export class AnimalsService {
   async getAnimalDetails(animalId: string, userId: string, userFarmId: string) {
     const animal = await this.animalRepo.findOne({
       where: { id: animalId },
-      relations: ["farm", "farm.owner", "createdBy", "updatedBy"],
+      relations: [
+        "farm",
+        "farm.owner",
+        "createdBy",
+        "updatedBy",
+        "speciesRelation",
+        "breedRelation",
+        "breedRelation.species",
+      ],
     });
 
     if (!animal) {
@@ -221,20 +278,41 @@ export class AnimalsService {
       animal.name = dto.name.trim();
     }
 
-    // Update species if provided
-    if (dto.species !== undefined) {
-      animal.species = dto.species ?? null;
+    // Update species (required)
+    const species = await this.speciesRepo.findOne({
+      where: { id: dto.speciesId, deletedAt: null },
+    });
+    if (!species) {
+      throw new BadRequestException("Invalid species ID");
+    }
+    animal.speciesRelation = species;
+
+    // Update breed (required)
+    const breed = await this.breedRepo.findOne({
+      where: { id: dto.breedId, deletedAt: null },
+      relations: ["species"],
+    });
+    if (!breed) {
+      throw new BadRequestException("Invalid breed ID");
     }
 
-    // Update breed if provided
-    if (dto.breed !== undefined) {
-      animal.breed = dto.breed ?? null;
+    // Validate breed species relation is loaded
+    if (!breed.species) {
+      throw new BadRequestException(
+        "Breed species relation not found. Please contact support.",
+      );
     }
 
-    // Update gender if provided
-    if (dto.gender !== undefined) {
-      animal.gender = dto.gender ?? null;
+    // Validate breed belongs to species (compare as strings to avoid type issues)
+    if (String(breed.species.id) !== String(species.id)) {
+      throw new BadRequestException(
+        "Breed does not belong to the selected species",
+      );
     }
+    animal.breedRelation = breed;
+
+    // Update gender (required)
+    animal.gender = dto.gender.trim();
 
     // Update birthdate if provided
     if (dto.birthdate !== undefined) {
@@ -279,7 +357,14 @@ export class AnimalsService {
     // Fetch updated animal with relations
     const updatedAnimal = await this.animalRepo.findOne({
       where: { id: animal.id },
-      relations: ["farm", "createdBy", "updatedBy"],
+      relations: [
+        "farm",
+        "createdBy",
+        "updatedBy",
+        "speciesRelation",
+        "breedRelation",
+        "breedRelation.species",
+      ],
     });
 
     return {
