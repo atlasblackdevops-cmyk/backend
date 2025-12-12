@@ -308,6 +308,91 @@ export class FertilizerController {
     return this.fertilizerService.listFertilizer(farmId, query);
   }
 
+  @Get("cost-summary")
+  @ApiOperation({
+    summary: "Get fertilizer cost summary per field",
+    description:
+      "Retrieves a cost summary report showing total fertilizer costs per field for the current farm. The farm ID is automatically retrieved from the user's token (currentFarm). Returns an array of fields with their total fertilizer costs. Fields with no fertilizer records will show 0 cost. Requires CROPS:LISTING permission.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Fertilizer cost summary fetched successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: {
+          type: "string",
+          example: "Fertilizer cost summary fetched successfully",
+        },
+        data: {
+          type: "object",
+          properties: {
+            summary: {
+              type: "array",
+              description: "Array of fields with their total fertilizer costs",
+              items: {
+                type: "object",
+                properties: {
+                  fieldId: {
+                    type: "string",
+                    format: "uuid",
+                    description: "Unique identifier of the field",
+                    example: "123e4567-e89b-12d3-a456-426614174000",
+                  },
+                  fieldName: {
+                    type: "string",
+                    description: "Name of the field",
+                    example: "North Field",
+                  },
+                  totalCost: {
+                    type: "number",
+                    description:
+                      "Total fertilizer cost for this field (0 if no records or null costs)",
+                    example: 850.75,
+                  },
+                },
+              },
+            },
+            totalFields: {
+              type: "number",
+              description: "Total number of fields in the farm",
+              example: 10,
+            },
+            totalCost: {
+              type: "number",
+              description: "Total fertilizer cost across all fields",
+              example: 3456.25,
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "User must have a current farm selected",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - User does not have CROPS:LISTING permission",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Farm not found",
+  })
+  @RequirePermission({
+    module: PermissionModule.CROPS,
+    action: PermissionAction.LISTING,
+  })
+  async getFertilizerCostSummary(@AuthUser() user: any) {
+    const farmId = (user as any).currentFarm?.id || (user as any).currentFarm;
+    if (!farmId) {
+      throw new BadRequestException("User must have a current farm selected");
+    }
+
+    return this.fertilizerService.getFertilizerCostSummary(farmId);
+  }
+
   @Get(":fertilizerId")
   @ApiOperation({
     summary: "Get fertilizer record details by ID",

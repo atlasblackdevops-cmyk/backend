@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
@@ -60,22 +59,25 @@ export class PlantingsService {
   }
 
   async createPlanting(userId: string, farmId: string, dto: CreatePlantingDto) {
-    const farmExists = await this.farmRepo.exist({ where: { id: farmId } });
+    const farmExists = await this.farmRepo.exist({
+      where: { id: farmId, deletedAt: null, isActive: true },
+    });
     if (!farmExists) {
       throw new NotFoundException("Farm not found");
     }
 
     const field = await this.fieldRepo.findOne({
-      where: { id: dto.fieldId },
-      relations: ["farm"],
+      where: {
+        id: dto.fieldId,
+        deletedAt: null,
+        farm: { id: farmId },
+      },
     });
 
-    if (!field || field.deletedAt) {
-      throw new NotFoundException("Field not found");
-    }
-
-    if (field.farm.id !== farmId) {
-      throw new ForbiddenException("Field does not belong to this farm");
+    if (!field) {
+      throw new NotFoundException(
+        "Field not found or does not belong to your current farm",
+      );
     }
 
     if (!dto.crop?.trim()) {
@@ -127,7 +129,9 @@ export class PlantingsService {
   }
 
   async listPlantings(farmId: string, query: ListPlantingsDto) {
-    const farmExists = await this.farmRepo.exist({ where: { id: farmId } });
+    const farmExists = await this.farmRepo.exist({
+      where: { id: farmId, deletedAt: null, isActive: true },
+    });
     if (!farmExists) {
       throw new NotFoundException("Farm not found");
     }
@@ -199,17 +203,21 @@ export class PlantingsService {
 
   async getPlantingDetails(plantingId: string, farmId: string) {
     const planting = await this.plantingRepo.findOne({
-      where: { id: plantingId },
-      relations: ["field", "field.farm"],
+      where: {
+        id: plantingId,
+        deletedAt: null,
+        field: { farm: { id: farmId } },
+      },
+      relations: {
+        field: {
+          farm: true,
+        },
+      },
     });
 
-    if (!planting || planting.deletedAt) {
-      throw new NotFoundException("Planting not found");
-    }
-
-    if (planting.field.farm.id !== farmId) {
-      throw new ForbiddenException(
-        "Planting does not belong to your current farm",
+    if (!planting) {
+      throw new NotFoundException(
+        "Planting not found or not part of your farm",
       );
     }
 
@@ -228,32 +236,28 @@ export class PlantingsService {
     dto: UpdatePlantingDto,
   ) {
     const planting = await this.plantingRepo.findOne({
-      where: { id: plantingId },
+      where: {
+        id: plantingId,
+        deletedAt: null,
+        field: { farm: { id: farmId } },
+      },
       relations: ["field", "field.farm"],
     });
 
-    if (!planting || planting.deletedAt) {
-      throw new NotFoundException("Planting not found");
-    }
-
-    if (planting.field.farm.id !== farmId) {
-      throw new ForbiddenException(
-        "Planting does not belong to your current farm",
+    if (!planting) {
+      throw new NotFoundException(
+        "Planting not found or not part of your farm",
       );
     }
 
     if (dto.fieldId && dto.fieldId !== planting.field.id) {
       const newField = await this.fieldRepo.findOne({
-        where: { id: dto.fieldId },
+        where: { id: dto.fieldId, deletedAt: null, farm: { id: farmId } },
         relations: ["farm"],
       });
 
-      if (!newField || newField.deletedAt) {
+      if (!newField) {
         throw new NotFoundException("Field not found");
-      }
-
-      if (newField.farm.id !== farmId) {
-        throw new ForbiddenException("Field does not belong to this farm");
       }
 
       planting.field = newField;
@@ -327,17 +331,17 @@ export class PlantingsService {
 
   async deletePlanting(plantingId: string, farmId: string, userId: string) {
     const planting = await this.plantingRepo.findOne({
-      where: { id: plantingId },
+      where: {
+        id: plantingId,
+        deletedAt: null,
+        field: { farm: { id: farmId } },
+      },
       relations: ["field", "field.farm"],
     });
 
-    if (!planting || planting.deletedAt) {
-      throw new NotFoundException("Planting not found");
-    }
-
-    if (planting.field.farm.id !== farmId) {
-      throw new ForbiddenException(
-        "Planting does not belong to your current farm",
+    if (!planting) {
+      throw new NotFoundException(
+        "Planting not found or not part of your farm",
       );
     }
 
@@ -348,5 +352,160 @@ export class PlantingsService {
     await this.plantingRepo.save(planting);
 
     return { message: "Planting deleted successfully" };
+  }
+
+  async getPlantingStats(farmId: string) {
+    // Single query to get all active plantings with field info
+    const activePlantings = await this.plantingRepo
+      .createQueryBuilder("planting")
+      .innerJoinAndSelect("planting.field", "field")
+      .innerJoin("field.farm", "farm")
+      .where("farm.id = :farmId", { farmId })
+      .andWhere("farm.deletedAt IS NULL")
+      .andWhere("farm.isActive = true")
+      .andWhere("planting.deletedAt IS NULL")
+      .andWhere("planting.isActive = true")
+      .andWhere("field.deletedAt IS NULL")
+      .orderBy("planting.plantingDate", "DESC")
+      .getMany();
+
+    // Single query to get all fields (for empty fields calculation)
+    const allFields = await this.fieldRepo
+      .createQueryBuilder("field")
+      .innerJoin("field.farm", "farm")
+      .where("farm.id = :farmId", { farmId })
+      .andWhere("field.deletedAt IS NULL")
+      .select([
+        "field.id",
+        "field.fieldName",
+        "field.fieldSize",
+        "field.sizeUnit",
+      ])
+      .getMany();
+
+    // Early return if farm has no fields
+    if (allFields.length === 0) {
+      throw new NotFoundException("Farm not found");
+    }
+
+    // Single pass processing: build all data structures simultaneously
+    const plantingsByField = new Map<string, any>();
+    const cropStats = new Map<
+      string,
+      { count: number; totalArea: number; fields: Set<string> }
+    >();
+    const fieldsWithPlantings = new Set<string>();
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const thirtyDaysFromNow = new Date(today);
+    thirtyDaysFromNow.setDate(today.getDate() + 30);
+    const upcomingHarvests: any[] = [];
+    let totalAreaPlanted = 0;
+
+    // Single iteration to process all plantings
+    for (const planting of activePlantings) {
+      const field = planting.field;
+      const fieldId = field.id;
+      const area = planting.area ? Number(planting.area) : 0;
+      const cropName = planting.cropName;
+
+      // Group by field
+      if (!plantingsByField.has(fieldId)) {
+        plantingsByField.set(fieldId, {
+          fieldId,
+          fieldName: field.fieldName,
+          fieldSize: field.fieldSize ? Number(field.fieldSize) : null,
+          sizeUnit: field.sizeUnit,
+          plantings: [],
+        });
+        fieldsWithPlantings.add(fieldId);
+      }
+
+      plantingsByField.get(fieldId)!.plantings.push({
+        id: planting.id,
+        cropName,
+        seedType: planting.seedType,
+        plantingDate: planting.plantingDate,
+        expectedHarvestDate: planting.expectedHarvestDate,
+        quantityPlanted: planting.quantityPlanted
+          ? Number(planting.quantityPlanted)
+          : null,
+        quantityUnit: planting.quantityUnit,
+        area: area || null,
+        areaUnit: planting.unit,
+      });
+
+      // Crop statistics
+      if (!cropStats.has(cropName)) {
+        cropStats.set(cropName, { count: 0, totalArea: 0, fields: new Set() });
+      }
+      const cropStat = cropStats.get(cropName)!;
+      cropStat.count++;
+      cropStat.fields.add(fieldId);
+      cropStat.totalArea += area;
+
+      // Total area
+      totalAreaPlanted += area;
+
+      // Upcoming harvests
+      if (planting.expectedHarvestDate) {
+        const harvestDate = new Date(planting.expectedHarvestDate);
+        harvestDate.setHours(0, 0, 0, 0);
+        if (harvestDate >= today && harvestDate <= thirtyDaysFromNow) {
+          upcomingHarvests.push({
+            id: planting.id,
+            cropName,
+            fieldName: field.fieldName,
+            expectedHarvestDate: planting.expectedHarvestDate,
+            daysUntilHarvest: Math.ceil(
+              (harvestDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
+            ),
+          });
+        }
+      }
+    }
+
+    // Sort upcoming harvests once
+    upcomingHarvests.sort(
+      (a, b) =>
+        new Date(a.expectedHarvestDate).getTime() -
+        new Date(b.expectedHarvestDate).getTime(),
+    );
+
+    // Fields without plantings (single pass filter)
+    const fieldsWithNoActivePlantings = allFields
+      .filter((field) => !fieldsWithPlantings.has(field.id))
+      .map((field) => ({
+        fieldId: field.id,
+        fieldName: field.fieldName,
+        fieldSize: field.fieldSize ? Number(field.fieldSize) : null,
+        sizeUnit: field.sizeUnit,
+      }));
+
+    return {
+      message: "Planting statistics fetched successfully",
+      data: {
+        summary: {
+          totalActivePlantings: activePlantings.length,
+          totalFieldsWithPlantings: plantingsByField.size,
+          totalFields: allFields.length,
+          totalFieldsWithoutPlantings: fieldsWithNoActivePlantings.length,
+          totalAreaPlanted,
+          uniqueCrops: cropStats.size,
+          upcomingHarvestsCount: upcomingHarvests.length,
+        },
+        plantingsByField: Array.from(plantingsByField.values()),
+        fieldsWithNoActivePlantings,
+        cropBreakdown: Array.from(cropStats.entries()).map(
+          ([cropName, stat]) => ({
+            cropName,
+            plantingCount: stat.count,
+            totalArea: stat.totalArea,
+            fieldsCount: stat.fields.size,
+          }),
+        ),
+        upcomingHarvests,
+      },
+    };
   }
 }

@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   Query,
+  Res,
 } from "@nestjs/common";
 import {
   ApiBearerAuth,
@@ -15,6 +16,7 @@ import {
   ApiResponse,
   ApiTags,
 } from "@nestjs/swagger";
+import { FastifyReply } from "fastify";
 import { RequirePermission } from "../../decorators/permission.decorator";
 import { AuthUser } from "../../decorators/user.decorator";
 import {
@@ -24,6 +26,7 @@ import {
 import { CreateHarvestDto } from "./dto/create-harvest.dto";
 import { ListHarvestsDto } from "./dto/list-harvests.dto";
 import { UpdateHarvestDto } from "./dto/update-harvest.dto";
+import { YieldBySeasonDto } from "./dto/yield-by-season.dto";
 import { HarvestsService } from "./harvests.service";
 
 @ApiTags("Harvests")
@@ -173,6 +176,145 @@ export class HarvestsController {
     }
 
     return this.harvestsService.createHarvest(user.id, farmId, dto);
+  }
+
+  @Get("yield-by-season")
+  @ApiOperation({
+    summary: "Get yield data by season for graph visualization",
+    description:
+      "Retrieves aggregated yield data grouped by season and crop type for graph visualization. Supports filtering by crop type. Requires CROPS:LISTING permission.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Yield data retrieved successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: {
+          type: "string",
+          example: "Yield data retrieved successfully",
+        },
+        data: {
+          type: "object",
+          properties: {
+            yields: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  season: {
+                    type: "string",
+                    example: "2024 Spring",
+                    description:
+                      "Season identifier in format 'YYYY Season' (e.g., '2024 Spring', '2023 Fall')",
+                  },
+                  yieldAmount: {
+                    type: "number",
+                    example: 1250,
+                    description:
+                      "Total yield amount for this season/crop combination",
+                  },
+                  yieldUnit: {
+                    type: "string",
+                    example: "kg",
+                    description: "Unit of measurement",
+                  },
+                  cropType: {
+                    type: "string",
+                    example: "Corn",
+                    description: "Type of crop",
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Bad request - User must have a current farm selected",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - User does not have CROPS:LISTING permission",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Farm not found",
+  })
+  @RequirePermission({
+    module: PermissionModule.CROPS,
+    action: PermissionAction.LISTING,
+  })
+  async getYieldBySeason(
+    @AuthUser() user: any,
+    @Query() query: YieldBySeasonDto,
+  ) {
+    const farmId = (user as any).currentFarm?.id || (user as any).currentFarm;
+    if (!farmId) {
+      throw new BadRequestException("User must have a current farm selected");
+    }
+
+    return this.harvestsService.getYieldBySeason(farmId, query);
+  }
+
+  @Get("export-csv")
+  @ApiOperation({
+    summary: "Export harvests to CSV",
+    description:
+      "Exports harvest records to CSV format with the same filters as the list endpoint (harvest date range). No pagination - exports all matching records.Requires CROPS:LISTING permission.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "CSV file downloaded successfully",
+    content: {
+      "text/csv": {
+        schema: {
+          type: "string",
+          format: "binary",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "User must have a current farm selected",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - User does not have CROPS:LISTING permission",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Farm not found",
+  })
+  @RequirePermission({
+    module: PermissionModule.CROPS,
+    action: PermissionAction.LISTING,
+  })
+  async exportHarvestsToCSV(
+    @AuthUser() user: any,
+    @Query() query: ListHarvestsDto,
+    @Res() reply: FastifyReply,
+  ) {
+    const farmId = (user as any).currentFarm?.id || (user as any).currentFarm;
+    if (!farmId) {
+      throw new BadRequestException("User must have a current farm selected");
+    }
+
+    const csvContent = await this.harvestsService.exportHarvestsToCSV(
+      farmId,
+      query,
+    );
+
+    const filename = `harvests_export_${new Date().toISOString().split("T")[0]}.csv`;
+
+    reply
+      .header("Content-Type", "text/csv; charset=utf-8")
+      .header("Content-Disposition", `attachment; filename="${filename}"`)
+      .send(csvContent);
   }
 
   @Get()

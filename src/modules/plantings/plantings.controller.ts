@@ -9,7 +9,12 @@ import {
   Put,
   Query,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import { RequirePermission } from "../../decorators/permission.decorator";
 import { AuthUser } from "../../decorators/user.decorator";
 import {
@@ -144,5 +149,140 @@ export class PlantingsController {
     }
 
     return this.plantingsService.deletePlanting(plantingId, farmId, user.id);
+  }
+
+  @Get("stats/summary")
+  @ApiOperation({
+    summary: "Get planting statistics",
+    description:
+      "Retrieves comprehensive statistics about plantings for the current farm, including current planted crops per field, crop breakdown, upcoming harvests, and more. Requires CROPS:LISTING permission.",
+  })
+  @RequirePermission({
+    module: PermissionModule.CROPS,
+    action: PermissionAction.LISTING,
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Planting statistics fetched successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: {
+          type: "string",
+          example: "Planting statistics fetched successfully",
+        },
+        data: {
+          type: "object",
+          properties: {
+            summary: {
+              type: "object",
+              properties: {
+                totalActivePlantings: { type: "number", example: 15 },
+                totalFieldsWithPlantings: { type: "number", example: 8 },
+                totalFields: { type: "number", example: 10 },
+                totalFieldsWithoutPlantings: { type: "number", example: 2 },
+                totalAreaPlanted: { type: "number", example: 125.5 },
+                uniqueCrops: { type: "number", example: 5 },
+                upcomingHarvestsCount: { type: "number", example: 3 },
+              },
+            },
+            plantingsByField: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  fieldId: { type: "string", format: "uuid" },
+                  fieldName: { type: "string", example: "North Field" },
+                  fieldSize: { type: "number", nullable: true, example: 50 },
+                  sizeUnit: {
+                    type: "string",
+                    nullable: true,
+                    example: "acres",
+                  },
+                  plantings: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        id: { type: "string", format: "uuid" },
+                        cropName: { type: "string", example: "Corn" },
+                        seedType: { type: "string", nullable: true },
+                        plantingDate: {
+                          type: "string",
+                          format: "date",
+                          nullable: true,
+                        },
+                        expectedHarvestDate: {
+                          type: "string",
+                          format: "date",
+                          nullable: true,
+                        },
+                        quantityPlanted: { type: "number", nullable: true },
+                        quantityUnit: { type: "string", nullable: true },
+                        area: { type: "number", nullable: true },
+                        areaUnit: { type: "string", nullable: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+            fieldsWithNoActivePlantings: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  fieldId: { type: "string", format: "uuid" },
+                  fieldName: { type: "string", example: "South Field" },
+                  fieldSize: { type: "number", nullable: true },
+                  sizeUnit: { type: "string", nullable: true },
+                },
+              },
+            },
+            cropBreakdown: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  cropName: { type: "string", example: "Corn" },
+                  plantingCount: { type: "number", example: 5 },
+                  totalArea: { type: "number", example: 75.5 },
+                  fieldsCount: { type: "number", example: 3 },
+                },
+              },
+            },
+            upcomingHarvests: {
+              type: "array",
+              items: {
+                type: "object",
+                properties: {
+                  id: { type: "string", format: "uuid" },
+                  cropName: { type: "string", example: "Wheat" },
+                  fieldName: { type: "string", example: "East Field" },
+                  expectedHarvestDate: { type: "string", format: "date" },
+                  daysUntilHarvest: { type: "number", example: 15 },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "User must have a current farm selected",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Farm not found",
+  })
+  getPlantingStats(@AuthUser() user: any) {
+    const farmId = (user as any).currentFarm?.id || (user as any).currentFarm;
+    if (!farmId) {
+      throw new BadRequestException("User must have a current farm selected");
+    }
+
+    return this.plantingsService.getPlantingStats(farmId);
   }
 }

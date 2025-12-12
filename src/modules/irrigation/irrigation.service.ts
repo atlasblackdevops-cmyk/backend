@@ -387,4 +387,54 @@ export class IrrigationService {
       message: "Irrigation record deleted successfully",
     };
   }
+
+  async getIrrigationCostSummary(farmId: string) {
+    const farmExists = await this.farmRepo.exist({
+      where: { id: farmId, deletedAt: null, isActive: true },
+    });
+    if (!farmExists) {
+      throw new NotFoundException("Farm not found");
+    }
+
+    // Get all fields with their irrigation cost totals
+    const results = await this.fieldRepo
+      .createQueryBuilder("field")
+      .innerJoin("field.farm", "farm")
+      .leftJoin(
+        "field.irrigationRecords",
+        "irrigation",
+        "irrigation.deletedAt IS NULL",
+      )
+      .where("farm.id = :farmId", { farmId })
+      .andWhere("farm.deletedAt IS NULL")
+      .andWhere("farm.isActive = true")
+      .andWhere("field.deletedAt IS NULL")
+      .select("field.id", "fieldId")
+      .addSelect("field.fieldName", "fieldName")
+      .addSelect(
+        "COALESCE(SUM(CAST(irrigation.cost AS DECIMAL)), 0)",
+        "totalCost",
+      )
+      .groupBy("field.id")
+      .addGroupBy("field.fieldName")
+      .orderBy("field.fieldName", "ASC")
+      .getRawMany();
+
+    const summary = results.map((item) => ({
+      fieldId: item.fieldId,
+      fieldName: item.fieldName,
+      totalCost: Number(item.totalCost) || 0,
+    }));
+
+    const totalCost = summary.reduce((sum, field) => sum + field.totalCost, 0);
+
+    return {
+      message: "Irrigation cost summary fetched successfully",
+      data: {
+        summary,
+        totalFields: summary.length,
+        totalCost,
+      },
+    };
+  }
 }

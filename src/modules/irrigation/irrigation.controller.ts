@@ -604,4 +604,89 @@ export class IrrigationController {
       farmId,
     );
   }
+
+  @Get("cost-summary")
+  @ApiOperation({
+    summary: "Get irrigation cost summary per field",
+    description:
+      "Retrieves a cost summary report showing total irrigation costs per field for the current farm. Returns an array of fields with their total irrigation costs. Fields with no irrigation records will show 0 cost. Requires CROPS:LISTING permission.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Irrigation cost summary fetched successfully",
+    schema: {
+      type: "object",
+      properties: {
+        message: {
+          type: "string",
+          example: "Irrigation cost summary fetched successfully",
+        },
+        data: {
+          type: "object",
+          properties: {
+            summary: {
+              type: "array",
+              description: "Array of fields with their total irrigation costs",
+              items: {
+                type: "object",
+                properties: {
+                  fieldId: {
+                    type: "string",
+                    format: "uuid",
+                    description: "Unique identifier of the field",
+                    example: "123e4567-e89b-12d3-a456-426614174000",
+                  },
+                  fieldName: {
+                    type: "string",
+                    description: "Name of the field",
+                    example: "North Field",
+                  },
+                  totalCost: {
+                    type: "number",
+                    description:
+                      "Total irrigation cost for this field (0 if no records or null costs)",
+                    example: 1250.5,
+                  },
+                },
+              },
+            },
+            totalFields: {
+              type: "number",
+              description: "Total number of fields in the farm",
+              example: 10,
+            },
+            totalCost: {
+              type: "number",
+              description: "Total irrigation cost across all fields",
+              example: 5678.9,
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "User must have a current farm selected",
+  })
+  @ApiResponse({
+    status: 403,
+    description: "Forbidden - User does not have CROPS:LISTING permission",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Farm not found",
+  })
+  @RequirePermission({
+    module: PermissionModule.CROPS,
+    action: PermissionAction.LISTING,
+  })
+  async getIrrigationCostSummary(@AuthUser() user: any) {
+    const farmId = (user as any).currentFarm?.id || (user as any).currentFarm;
+    if (!farmId) {
+      throw new BadRequestException("User must have a current farm selected");
+    }
+
+    return this.irrigationService.getIrrigationCostSummary(farmId);
+  }
 }
