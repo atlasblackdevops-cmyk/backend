@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { InjectRepository } from "@nestjs/typeorm";
+import { randomUUID } from "crypto";
 import { Repository } from "typeorm";
 import { AuthConfig } from "../../config/auth.config";
 import { Farm } from "../../database/entities/farm.entity";
@@ -47,6 +48,9 @@ export class AuthService {
       role = await this.roles.save(this.roles.create({ roleName: "OWNER" }));
     }
 
+    // Generate ownerGroupId for OWNER role (only owners need group ID)
+    const ownerGroupId = randomUUID();
+
     const user = this.users.create({
       email: dto.email,
       password: this.bcrypt.hashSync(dto.password),
@@ -54,6 +58,7 @@ export class AuthService {
       mobile: dto.mobile ?? null,
       emailVerified: false,
       role,
+      ownerGroupId, // Assign group ID to owner
     });
     const saved = await this.users.save(user);
 
@@ -141,6 +146,9 @@ export class AuthService {
       // Upload Google picture to S3 and get the key
       const profilePictureKey = await uploadGooglePicture(picture);
 
+      // Generate ownerGroupId for OWNER role (only owners need group ID)
+      const ownerGroupId = randomUUID();
+
       const toCreate = this.users.create({
         email,
         password: this.bcrypt.hashSync(
@@ -151,6 +159,7 @@ export class AuthService {
         emailVerified: true,
         googleSub: sub,
         role: defaultRole,
+        ownerGroupId, // Assign group ID to owner
       });
       try {
         user = await this.users.save(toCreate);

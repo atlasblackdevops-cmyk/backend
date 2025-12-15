@@ -26,7 +26,8 @@
     "seed:superadmin": "node dist/commands/index.js seed-super-admin",
     "seed:permissions": "node dist/commands/index.js seed-permissions",
     "seed:species": "node dist/commands/index.js seed-species",
-    "seed:breeds": "node dist/commands/index.js seed-breeds"
+    "seed:breeds": "node dist/commands/index.js seed-breeds",
+    "backfill:owner-group-id": "node dist/commands/index.js backfill-owner-group-id"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.940.0",

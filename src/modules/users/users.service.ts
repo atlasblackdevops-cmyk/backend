@@ -93,7 +93,19 @@ export class UsersService {
       );
     }
 
-    // Create new user
+    // Get owner's groupId (owner is the creator)
+    const owner = await this.userRepo.findOne({
+      where: { id: creatorId },
+      select: ["ownerGroupId"],
+    });
+
+    if (!owner || !owner.ownerGroupId) {
+      throw new BadRequestException(
+        "Owner group ID not found. Please contact support.",
+      );
+    }
+
+    // Create new user with owner's groupId
     const user = this.userRepo.create({
       email: dto.email,
       name: dto.name,
@@ -102,6 +114,7 @@ export class UsersService {
       emailVerified: false,
       isActive: true,
       currentFarm: farm,
+      ownerGroupId: owner.ownerGroupId, // Assign owner's group ID to user
     });
     await this.userRepo.save(user);
 
@@ -654,11 +667,27 @@ export class UsersService {
     });
     await this.farmMemberRepo.save(farmMember);
 
-    // Set currentFarm if user doesn't have one
+    // Get owner's groupId (owner is the creator)
+    const owner = await this.userRepo.findOne({
+      where: { id: creatorId },
+      select: ["ownerGroupId"],
+    });
+
+    if (!owner || !owner.ownerGroupId) {
+      throw new BadRequestException(
+        "Owner group ID not found. Please contact support.",
+      );
+    }
+
+    // Set currentFarm and ownerGroupId if user doesn't have them
     if (!user.currentFarm) {
       user.currentFarm = farm;
-      await this.userRepo.save(user);
     }
+    // Assign owner's groupId to existing user (if not already assigned)
+    if (!user.ownerGroupId) {
+      user.ownerGroupId = owner.ownerGroupId;
+    }
+    await this.userRepo.save(user);
 
     // Assign permissions
     await this.assignPermissions(userId, farmId, permissionIds);
