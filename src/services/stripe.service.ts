@@ -8,9 +8,8 @@ export class StripeService {
   private readonly stripe: Stripe;
 
   constructor(private readonly stripeConfig: StripeConfig) {
-    this.stripe = new Stripe(stripeConfig.secretKey, {
-      apiVersion: "2024-11-20.acacia",
-    });
+    // Use Stripe's default API version pinned to the account; avoid hardcoding
+    this.stripe = new Stripe(stripeConfig.secretKey);
   }
 
   /**
@@ -40,7 +39,12 @@ export class StripeService {
    */
   async getCustomer(customerId: string): Promise<Stripe.Customer> {
     try {
-      return await this.stripe.customers.retrieve(customerId);
+      const customer = await this.stripe.customers.retrieve(customerId);
+      // Handle deleted customers explicitly
+      if ((customer as Stripe.DeletedCustomer).deleted) {
+        throw new Error(`Customer ${customerId} is deleted`);
+      }
+      return customer as Stripe.Customer;
     } catch (error) {
       this.logger.error(`Error retrieving customer ${customerId}:`, error);
       throw error;

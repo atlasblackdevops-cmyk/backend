@@ -15,6 +15,7 @@ import { HarvestsModule } from "./modules/harvests/harvests.module";
 import { IrrigationModule } from "./modules/irrigation/irrigation.module";
 import { PlantingsModule } from "./modules/plantings/plantings.module";
 import { SharedModule } from "./modules/shared/shared.module";
+import { SubscriptionModule } from "./modules/subscription/subscription.module";
 import { UsersModule } from "./modules/users/users.module";
 
 @Module({
@@ -34,6 +35,7 @@ import { UsersModule } from "./modules/users/users.module";
     IrrigationModule,
     FertilizerModule,
     CropHealthNotesModule,
+    SubscriptionModule,
   ],
   controllers: [AppController],
   providers: [AppService],

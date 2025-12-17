@@ -1,0 +1,438 @@
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import Stripe from "stripe";
+import { Repository } from "typeorm";
+import {
+  OwnerGroupSubscription,
+  SubscriptionStatus,
+} from "../../database/entities/owner-group-subscription.entity";
+import {
+  PaymentStatus,
+  SubscriptionPayment,
+} from "../../database/entities/subscription-payment.entity";
+import { User } from "../../database/entities/user.entity";
+import { UserRole } from "../../enums/user.enum";
+import { StripeService } from "../../services/stripe.service";
+
+type StripeSubStatus =
+  | "active"
+  | "canceled"
+  | "incomplete"
+  | "incomplete_expired"
+  | "past_due"
+  | "paused"
+  | "trialing"
+  | "unpaid";
+
+@Injectable()
+export class SubscriptionService {
+  private readonly logger = new Logger(SubscriptionService.name);
+
+  constructor(
+    @InjectRepository(User)
+    private readonly users: Repository<User>,
+    @InjectRepository(OwnerGroupSubscription)
+    private readonly subscriptions: Repository<OwnerGroupSubscription>,
+    @InjectRepository(SubscriptionPayment)
+    private readonly payments: Repository<SubscriptionPayment>,
+    private readonly stripeService: StripeService,
+  ) {}
+
+  /**
+   * List available plans from Stripe (always fresh from Stripe API).
+   * Optionally filter by allowed price IDs (pass a list to restrict).
+   */
+  async listPlans(allowPriceIds?: string[]) {
+    const prices = await this.stripeService.listPrices(true, 100);
+
+    const filtered = allowPriceIds
+      ? prices.filter((p) => allowPriceIds.includes(p.id))
+      : prices;
+
+    // Enrich with product details
+    return Promise.all(
+      filtered.map(async (price) => {
+        const details = await this.stripeService.getPlanDetails(price.id);
+        return {
+          priceId: price.id,
+          productId: price.product as string,
+          name: details.name,
+          amount: details.amount,
+          currency: details.currency,
+          interval: details.interval,
+          intervalCount: details.intervalCount,
+          description: details.description,
+          metadata: price.metadata,
+        };
+      }),
+    );
+  }
+
+  /**
+   * Create a Stripe Checkout Session for an owner.
+   */
+  async createCheckoutSession(ownerId: string, priceId: string) {
+    const owner = await this.users.findOne({
+      where: { id: ownerId },
+      relations: ["role"],
+    });
+    if (!owner) throw new NotFoundException("Owner not found");
+    if (owner.role?.roleName !== UserRole.OWNER) {
+      throw new BadRequestException("Only owners can start checkout");
+    }
+    if (!owner.ownerGroupId) {
+      throw new BadRequestException("Owner does not have ownerGroupId");
+    }
+
+    // reuse existing subscription/customer if any
+    const existingSub = await this.subscriptions.findOne({
+      where: { ownerGroupId: owner.ownerGroupId },
+    });
+
+    let stripeCustomerId =
+      existingSub?.stripeCustomerId ??
+      (await this.ensureStripeCustomer(owner.email, owner.name));
+
+    const session = await this.stripeService.createCheckoutSession(
+      stripeCustomerId,
+      priceId,
+      owner.ownerGroupId,
+      owner.id,
+    );
+
+    return {
+      url: session.url,
+      id: session.id,
+    };
+  }
+
+  private async ensureStripeCustomer(email: string, name?: string) {
+    const customer = await this.stripeService.createCustomer(email, name);
+    return customer.id;
+  }
+
+  /**
+   * Get current subscription for an ownerGroupId.
+   */
+  async getCurrentSubscriptionForUser(userId: string) {
+    const user = await this.users.findOne({
+      where: { id: userId },
+      relations: ["role"],
+    });
+    if (!user) throw new NotFoundException("User not found");
+    if (!user.ownerGroupId)
+      throw new NotFoundException("User has no owner group assigned");
+
+    const sub = await this.subscriptions.findOne({
+      where: { ownerGroupId: user.ownerGroupId },
+    });
+    if (!sub) {
+      return { status: "NONE" };
+    }
+    return sub;
+  }
+
+  /**
+   * Cancel subscription (owner only).
+   */
+  async cancelSubscription(ownerId: string, cancelAtPeriodEnd = true) {
+    const owner = await this.users.findOne({
+      where: { id: ownerId },
+      relations: ["role"],
+    });
+    if (!owner) throw new NotFoundException("Owner not found");
+    if (owner.role?.roleName !== UserRole.OWNER) {
+      throw new BadRequestException("Only owners can cancel subscription");
+    }
+    if (!owner.ownerGroupId) {
+      throw new BadRequestException("Owner does not have ownerGroupId");
+    }
+
+    const sub = await this.subscriptions.findOne({
+      where: { ownerGroupId: owner.ownerGroupId },
+    });
+    if (!sub || !sub.stripeSubscriptionId) {
+      throw new NotFoundException("Active subscription not found");
+    }
+
+    const canceled = await this.stripeService.cancelSubscription(
+      sub.stripeSubscriptionId,
+      cancelAtPeriodEnd,
+    );
+
+    await this.applySubscriptionUpdate(owner.ownerGroupId, canceled);
+    return { status: canceled.status, cancelAtPeriodEnd };
+  }
+
+  /**
+   * Handle Stripe webhook event (controller passes constructed event)
+   */
+  async handleWebhook(event: Stripe.Event) {
+    switch (event.type) {
+      case "checkout.session.completed":
+        await this.handleCheckoutSessionCompleted(
+          event.data.object as Stripe.Checkout.Session,
+        );
+        break;
+      case "customer.subscription.created":
+      case "customer.subscription.updated":
+        await this.handleSubscriptionUpdated(
+          event.data.object as Stripe.Subscription,
+        );
+        break;
+      case "customer.subscription.deleted":
+        await this.handleSubscriptionDeleted(
+          event.data.object as Stripe.Subscription,
+        );
+        break;
+      case "invoice.payment_succeeded":
+        await this.handleInvoicePaymentSucceeded(
+          event.data.object as Stripe.Invoice,
+        );
+        break;
+      case "invoice.payment_failed":
+        await this.handleInvoicePaymentFailed(
+          event.data.object as Stripe.Invoice,
+        );
+        break;
+      default:
+        this.logger.debug(`Unhandled Stripe event: ${event.type}`);
+    }
+  }
+
+  private async handleCheckoutSessionCompleted(
+    session: Stripe.Checkout.Session,
+  ) {
+    const ownerGroupId = session.metadata?.ownerGroupId;
+    const ownerId = session.metadata?.ownerId;
+    const subscriptionId = session.subscription as string | null;
+    const customerId = session.customer as string | null;
+    const priceId =
+      (session.line_items?.data?.[0]?.price?.id as string | undefined) ||
+      (session.metadata as any)?.priceId ||
+      null;
+
+    if (!ownerGroupId || !ownerId || !subscriptionId) {
+      this.logger.error(
+        "Missing ownerGroupId/ownerId/subscriptionId in checkout.session.completed",
+      );
+      return;
+    }
+
+    const subscription =
+      await this.stripeService.getSubscription(subscriptionId);
+
+    await this.applySubscriptionUpdate(ownerGroupId, subscription, {
+      ownerId,
+      customerId: customerId ?? undefined,
+      priceId: priceId ?? undefined,
+    });
+  }
+
+  private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+    const ownerGroupId =
+      (subscription.metadata as any)?.ownerGroupId ||
+      (subscription.metadata as any)?.owner_group_id;
+    if (!ownerGroupId) {
+      this.logger.error("subscription.updated missing ownerGroupId metadata");
+      return;
+    }
+    await this.applySubscriptionUpdate(ownerGroupId, subscription);
+  }
+
+  private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
+    const ownerGroupId =
+      (subscription.metadata as any)?.ownerGroupId ||
+      (subscription.metadata as any)?.owner_group_id;
+    if (!ownerGroupId) {
+      this.logger.error("subscription.deleted missing ownerGroupId metadata");
+      return;
+    }
+
+    const mappedStatus = this.mapStripeStatus(subscription.status);
+    await this.subscriptions.update(
+      { ownerGroupId },
+      {
+        status: mappedStatus,
+        canceledAt: subscription.canceled_at
+          ? new Date(subscription.canceled_at * 1000)
+          : new Date(),
+        cancelAtPeriodEnd: true,
+      },
+    );
+  }
+
+  private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
+    const invoiceWithSubs = invoice as Stripe.Invoice & {
+      subscription?: string | Stripe.Subscription | null;
+      payment_intent?: string | Stripe.PaymentIntent | null;
+    };
+
+    const subscriptionId = invoiceWithSubs.subscription as string | undefined;
+    if (!subscriptionId) return;
+
+    const sub = await this.subscriptions.findOne({
+      where: { stripeSubscriptionId: subscriptionId },
+    });
+    if (!sub) return;
+
+    // Insert payment record
+    await this.payments.save(
+      this.payments.create({
+        ownerGroupSubscription: sub,
+        stripePaymentIntentId:
+          (invoiceWithSubs.payment_intent as string) || invoiceWithSubs.id,
+        stripeInvoiceId: invoiceWithSubs.id,
+        amount: (invoiceWithSubs.amount_paid ?? 0) / 100,
+        currency: invoiceWithSubs.currency,
+        status: PaymentStatus.SUCCEEDED,
+        paidAt: invoiceWithSubs.status_transitions?.paid_at
+          ? new Date(invoiceWithSubs.status_transitions.paid_at * 1000)
+          : new Date(),
+      }),
+    );
+
+    // Update period dates if present
+    if (invoiceWithSubs.lines?.data?.[0]?.period) {
+      const period = invoiceWithSubs.lines.data[0].period;
+      await this.subscriptions.update(
+        { id: sub.id },
+        {
+          currentPeriodStart: period.start
+            ? new Date(period.start * 1000)
+            : sub.currentPeriodStart,
+          currentPeriodEnd: period.end
+            ? new Date(period.end * 1000)
+            : sub.currentPeriodEnd,
+        },
+      );
+    }
+  }
+
+  private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+    const invoiceWithSubs = invoice as Stripe.Invoice & {
+      subscription?: string | Stripe.Subscription | null;
+    };
+
+    const subscriptionId = invoiceWithSubs.subscription as string | undefined;
+    if (!subscriptionId) return;
+
+    const sub = await this.subscriptions.findOne({
+      where: { stripeSubscriptionId: subscriptionId },
+    });
+    if (!sub) return;
+
+    await this.subscriptions.update(
+      { id: sub.id },
+      { status: SubscriptionStatus.PAST_DUE },
+    );
+  }
+
+  /**
+   * Upsert subscription for an owner group based on Stripe subscription data.
+   */
+  private async applySubscriptionUpdate(
+    ownerGroupId: string,
+    subscription: Stripe.Subscription,
+    options?: { ownerId?: string; customerId?: string; priceId?: string },
+  ) {
+    const subscriptionWithPeriods = subscription as Stripe.Subscription & {
+      current_period_start?: number;
+      current_period_end?: number;
+      trial_start?: number;
+      trial_end?: number;
+    };
+
+    const ownerId =
+      options?.ownerId ||
+      (subscription.metadata as any)?.ownerId ||
+      (subscription.metadata as any)?.owner_id;
+    if (!ownerId) {
+      this.logger.error("Missing ownerId in subscription metadata");
+      return;
+    }
+
+    const owner = await this.users.findOne({
+      where: { id: ownerId },
+      relations: ["role"],
+    });
+    if (!owner) {
+      this.logger.error(`Owner ${ownerId} not found`);
+      return;
+    }
+
+    const stripePriceId =
+      options?.priceId ||
+      (subscription.items.data[0]?.price?.id as string | undefined);
+
+    const mappedStatus = this.mapStripeStatus(
+      subscription.status as StripeSubStatus,
+    );
+
+    const sub = await this.subscriptions.findOne({
+      where: { ownerGroupId },
+    });
+
+    const payload: Partial<OwnerGroupSubscription> = {
+      ownerGroupId,
+      owner,
+      stripePriceId: stripePriceId || sub?.stripePriceId,
+      stripeSubscriptionId: subscription.id,
+      stripeCustomerId:
+        options?.customerId ||
+        (subscription.customer as string | undefined) ||
+        sub?.stripeCustomerId,
+      status: mappedStatus,
+      currentPeriodStart: subscriptionWithPeriods.current_period_start
+        ? new Date(subscriptionWithPeriods.current_period_start * 1000)
+        : (sub?.currentPeriodStart ?? null),
+      currentPeriodEnd: subscriptionWithPeriods.current_period_end
+        ? new Date(subscriptionWithPeriods.current_period_end * 1000)
+        : (sub?.currentPeriodEnd ?? null),
+      cancelAtPeriodEnd: subscription.cancel_at_period_end ?? false,
+      canceledAt: subscription.canceled_at
+        ? new Date(subscription.canceled_at * 1000)
+        : (sub?.canceledAt ?? null),
+      trialStart: subscriptionWithPeriods.trial_start
+        ? new Date(subscriptionWithPeriods.trial_start * 1000)
+        : (sub?.trialStart ?? null),
+      trialEnd: subscriptionWithPeriods.trial_end
+        ? new Date(subscriptionWithPeriods.trial_end * 1000)
+        : (sub?.trialEnd ?? null),
+    };
+
+    if (sub) {
+      await this.subscriptions.update({ id: sub.id }, payload);
+    } else {
+      await this.subscriptions.save(this.subscriptions.create(payload));
+    }
+  }
+
+  private mapStripeStatus(status: StripeSubStatus): SubscriptionStatus {
+    switch (status) {
+      case "active":
+        return SubscriptionStatus.ACTIVE;
+      case "trialing":
+        return SubscriptionStatus.TRIALING;
+      case "past_due":
+        return SubscriptionStatus.PAST_DUE;
+      case "unpaid":
+        return SubscriptionStatus.UNPAID;
+      case "incomplete":
+        return SubscriptionStatus.INCOMPLETE;
+      case "incomplete_expired":
+        return SubscriptionStatus.INCOMPLETE_EXPIRED;
+      case "canceled":
+        return SubscriptionStatus.CANCELED;
+      case "paused":
+        return SubscriptionStatus.CANCELED; // treat paused as inactive
+      default:
+        return SubscriptionStatus.INCOMPLETE;
+    }
+  }
+}

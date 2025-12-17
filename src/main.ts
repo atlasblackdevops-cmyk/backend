@@ -20,6 +20,38 @@ async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
+    {
+      // Disable Nest's default body parser so we can register our own
+      bodyParser: false,
+    },
+  );
+
+  // Keep raw body for Stripe webhooks while still parsing JSON for other routes.
+  // We register our own JSON parser (buffer) because Nest bodyParser is disabled above.
+  const fastify = app.getHttpAdapter().getInstance();
+  const rawJsonParser = (
+    req: any,
+    body: Buffer,
+    done: (err: Error | null, value?: any) => void,
+  ) => {
+    req.rawBody = body;
+    try {
+      const json = body?.length ? JSON.parse(body.toString("utf8")) : {};
+      done(null, json);
+    } catch (err: any) {
+      err.statusCode = 400;
+      done(err);
+    }
+  };
+  fastify.addContentTypeParser(
+    "application/json",
+    { parseAs: "buffer" },
+    rawJsonParser,
+  );
+  fastify.addContentTypeParser(
+    "application/*+json",
+    { parseAs: "buffer" },
+    rawJsonParser,
   );
 
   const port = +app.get(AppConfig).port;
