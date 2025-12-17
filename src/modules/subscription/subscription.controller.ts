@@ -13,6 +13,7 @@ import { UserRole } from "../../enums/user.enum";
 import { StripeService } from "../../services/stripe.service";
 import { CancelSubscriptionDto } from "./dto/cancel-subscription.dto";
 import { CreateCheckoutSessionDto } from "./dto/create-checkout-session.dto";
+import { UpdateSubscriptionDto } from "./dto/update-subscription.dto";
 import { SubscriptionService } from "./subscription.service";
 
 @ApiTags("Subscription")
@@ -53,6 +54,28 @@ export class SubscriptionController {
     return {
       message: "Checkout session created",
       data: session,
+    };
+  }
+
+  @Post("change-plan")
+  @Auth([UserRole.OWNER])
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Change subscription plan (owner only)" })
+  @ApiResponse({
+    status: 200,
+    description: "Plan updated",
+  })
+  async changePlan(
+    @AuthUser() user: { id: string },
+    @Body() dto: UpdateSubscriptionDto,
+  ) {
+    const result = await this.subscriptionService.changePlan(
+      user.id,
+      dto.newPriceId,
+    );
+    return {
+      message: "Subscription plan updated",
+      data: result,
     };
   }
 

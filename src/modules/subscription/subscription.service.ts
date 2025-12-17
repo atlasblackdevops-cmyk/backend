@@ -94,6 +94,34 @@ export class SubscriptionService {
       where: { ownerGroupId: owner.ownerGroupId },
     });
 
+    /**
+     * Prevent duplicate active checkouts (enable when ready).
+     *
+     * if (existingSub) {
+     *   const isActiveLike =
+     *     existingSub.status === SubscriptionStatus.ACTIVE ||
+     *     existingSub.status === SubscriptionStatus.TRIALING ||
+     *     existingSub.status === SubscriptionStatus.PAST_DUE;
+     *   const periodStillValid =
+     *     !!existingSub.currentPeriodEnd &&
+     *     existingSub.currentPeriodEnd.getTime() > Date.now();
+     *   const cancelAtPeriodEndFuture =
+     *     existingSub.cancelAtPeriodEnd && periodStillValid;
+     *
+     *   if (isActiveLike && (periodStillValid || existingSub.status === SubscriptionStatus.ACTIVE)) {
+     *     throw new BadRequestException(
+     *       "An active subscription already exists; use plan change instead of starting a new checkout.",
+     *     );
+     *   }
+     *
+     *   if (cancelAtPeriodEndFuture) {
+     *     throw new BadRequestException(
+     *       "A subscription is pending cancellation at period end. Please wait until it ends before re-subscribing.",
+     *     );
+     *   }
+     * }
+     */
+
     let stripeCustomerId =
       existingSub?.stripeCustomerId ??
       (await this.ensureStripeCustomer(owner.email, owner.name));
@@ -114,6 +142,45 @@ export class SubscriptionService {
   private async ensureStripeCustomer(email: string, name?: string) {
     const customer = await this.stripeService.createCustomer(email, name);
     return customer.id;
+  }
+
+  /**
+   * Change plan for an existing subscription (upgrade/downgrade).
+   */
+  async changePlan(ownerId: string, newPriceId: string) {
+    const owner = await this.users.findOne({
+      where: { id: ownerId },
+      relations: ["role"],
+    });
+    if (!owner) throw new NotFoundException("Owner not found");
+    if (owner.role?.roleName !== UserRole.OWNER) {
+      throw new BadRequestException("Only owners can change subscription plan");
+    }
+    if (!owner.ownerGroupId) {
+      throw new BadRequestException("Owner does not have ownerGroupId");
+    }
+
+    const sub = await this.subscriptions.findOne({
+      where: { ownerGroupId: owner.ownerGroupId },
+    });
+    if (!sub || !sub.stripeSubscriptionId) {
+      throw new NotFoundException(
+        "Active subscription not found to change plan",
+      );
+    }
+
+    const updated = await this.stripeService.updateSubscription(
+      sub.stripeSubscriptionId,
+      newPriceId,
+    );
+
+    await this.applySubscriptionUpdate(owner.ownerGroupId, updated);
+
+    return {
+      subscriptionId: updated.id,
+      priceId: newPriceId,
+      status: updated.status,
+    };
   }
 
   /**
@@ -268,25 +335,87 @@ export class SubscriptionService {
   }
 
   private async handleInvoicePaymentSucceeded(invoice: Stripe.Invoice) {
-    const invoiceWithSubs = invoice as Stripe.Invoice & {
+    let invoiceWithSubs = invoice as Stripe.Invoice & {
       subscription?: string | Stripe.Subscription | null;
       payment_intent?: string | Stripe.PaymentIntent | null;
+      customer?: string | Stripe.Customer | null;
     };
 
-    const subscriptionId = invoiceWithSubs.subscription as string | undefined;
-    if (!subscriptionId) return;
+    let subscriptionId = invoiceWithSubs.subscription as string | undefined;
+    const customerId =
+      typeof invoiceWithSubs.customer === "string"
+        ? (invoiceWithSubs.customer as string)
+        : (invoiceWithSubs.customer as Stripe.Customer | null)?.id;
 
-    const sub = await this.subscriptions.findOne({
-      where: { stripeSubscriptionId: subscriptionId },
-    });
-    if (!sub) return;
+    // Fallback: refetch invoice to get subscription id if missing
+    if (!subscriptionId) {
+      try {
+        const refreshed = (await this.stripeService.getInvoice(
+          invoiceWithSubs.id,
+        )) as Stripe.Invoice & {
+          subscription?: string | Stripe.Subscription | null;
+          payment_intent?: string | Stripe.PaymentIntent | null;
+          customer?: string | Stripe.Customer | null;
+        };
+        invoiceWithSubs = refreshed;
+        subscriptionId = refreshed.subscription as string | undefined;
+      } catch (err) {
+        this.logger.error(
+          `Failed to refetch invoice ${invoiceWithSubs.id} for subscription id resolution`,
+          err as any,
+        );
+      }
+    }
+
+    // Fallback: try to resolve subscription from customer if still missing
+    let sub = subscriptionId
+      ? await this.subscriptions.findOne({
+          where: { stripeSubscriptionId: subscriptionId },
+        })
+      : null;
+
+    if (!sub && customerId) {
+      sub = await this.subscriptions.findOne({
+        where: { stripeCustomerId: customerId },
+        order: { createdAt: "DESC" },
+      });
+      if (sub && !subscriptionId) {
+        subscriptionId = sub.stripeSubscriptionId ?? undefined;
+      }
+    }
+
+    if (!subscriptionId && !sub) {
+      this.logger.warn(
+        `invoice.payment_succeeded missing subscription id; invoice=${invoiceWithSubs.id} customer=${customerId ?? "unknown"}`,
+      );
+      return;
+    }
+
+    if (!sub && subscriptionId) {
+      sub = await this.subscriptions.findOne({
+        where: { stripeSubscriptionId: subscriptionId },
+      });
+    }
+
+    if (!sub) {
+      this.logger.warn(
+        `invoice.payment_succeeded subscription not found; subscriptionId=${subscriptionId} invoice=${invoiceWithSubs.id} customer=${customerId ?? "unknown"}`,
+      );
+      return;
+    }
+
+    const paymentIntentId =
+      (invoiceWithSubs.payment_intent as string) || invoiceWithSubs.id;
+
+    this.logger.debug(
+      `Recording payment for subscription=${sub.id} invoice=${invoiceWithSubs.id} paymentIntent=${paymentIntentId} amount=${invoiceWithSubs.amount_paid}`,
+    );
 
     // Insert payment record
     await this.payments.save(
       this.payments.create({
         ownerGroupSubscription: sub,
-        stripePaymentIntentId:
-          (invoiceWithSubs.payment_intent as string) || invoiceWithSubs.id,
+        stripePaymentIntentId: paymentIntentId,
         stripeInvoiceId: invoiceWithSubs.id,
         amount: (invoiceWithSubs.amount_paid ?? 0) / 100,
         currency: invoiceWithSubs.currency,

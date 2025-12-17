@@ -280,6 +280,20 @@ export class StripeService {
   }
 
   /**
+   * Retrieve an invoice (used when webhook payload is missing fields)
+   */
+  async getInvoice(invoiceId: string): Promise<Stripe.Invoice> {
+    try {
+      return await this.stripe.invoices.retrieve(invoiceId, {
+        expand: ["subscription"],
+      });
+    } catch (error) {
+      this.logger.error(`Error retrieving invoice ${invoiceId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Get plan details (price + product) from Stripe
    * This is used to fetch plan information when displaying to users
    */
