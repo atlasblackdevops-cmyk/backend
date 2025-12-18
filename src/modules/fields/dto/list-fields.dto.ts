@@ -47,11 +47,11 @@ export class ListFieldsDto {
 
   @ApiPropertyOptional({
     description: "Search term applied to field name or soil type",
-    minLength: 2,
+    minLength:1
   })
   @IsOptional()
   @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
-  @MinLength(2)
+  @MinLength(1)
   search?: string;
 
   @ApiPropertyOptional({

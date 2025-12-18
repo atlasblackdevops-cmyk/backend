@@ -385,8 +385,13 @@ export class PlantingsService {
 
     // Early return if farm has no fields
     if (allFields.length === 0) {
-      throw new NotFoundException("Farm not found");
+      // throw new NotFoundException("Farm not found");
+      return {
+        message: "Planting statistics fetched successfully",
+        data:{},
+      };
     }
+
 
     // Single pass processing: build all data structures simultaneously
     const plantingsByField = new Map<string, any>();
