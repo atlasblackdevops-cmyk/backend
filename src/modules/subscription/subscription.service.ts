@@ -621,9 +621,27 @@ export class SubscriptionService {
       subscription.status as StripeSubStatus,
     );
 
-    const sub = await this.subscriptions.findOne({
-      where: { ownerGroupId },
+    // First check if subscription exists by stripeSubscriptionId (unique constraint)
+    // This handles cases where webhook arrives multiple times or subscription already exists
+    let sub = await this.subscriptions.findOne({
+      where: { stripeSubscriptionId: subscription.id },
     });
+
+    // If found by stripeSubscriptionId but ownerGroupId doesn't match, log warning
+    // This shouldn't happen in normal flow, but handle edge cases
+    if (sub && sub.ownerGroupId !== ownerGroupId) {
+      this.logger.warn(
+        `Subscription ${subscription.id} exists but ownerGroupId mismatch. Existing: ${sub.ownerGroupId}, Expected: ${ownerGroupId}. Updating existing record.`,
+      );
+    }
+
+    // If not found by stripeSubscriptionId, check by ownerGroupId
+    // This handles cases where subscription doesn't exist yet for this owner group
+    if (!sub) {
+      sub = await this.subscriptions.findOne({
+        where: { ownerGroupId },
+      });
+    }
 
     // Extract payment method details from subscription
     let cardDetails = {
