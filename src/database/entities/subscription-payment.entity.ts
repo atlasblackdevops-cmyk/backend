@@ -68,6 +68,47 @@ export class SubscriptionPayment {
   })
   paidAt: Date | null;
 
+  /**
+   * Payment method used for this specific payment transaction
+   */
+  @Column({
+    name: "stripe_payment_method_id",
+    type: "varchar",
+    length: 255,
+    nullable: true,
+  })
+  stripePaymentMethodId: string | null;
+
+  @Column({
+    name: "card_brand",
+    type: "varchar",
+    length: 50,
+    nullable: true,
+  })
+  cardBrand: string | null; // e.g., "visa", "mastercard", "amex"
+
+  @Column({
+    name: "card_last4",
+    type: "varchar",
+    length: 4,
+    nullable: true,
+  })
+  cardLast4: string | null; // Last 4 digits of card used for this payment
+
+  @Column({
+    name: "card_exp_month",
+    type: "smallint",
+    nullable: true,
+  })
+  cardExpMonth: number | null; // 1-12
+
+  @Column({
+    name: "card_exp_year",
+    type: "smallint",
+    nullable: true,
+  })
+  cardExpYear: number | null; // e.g., 2025
+
   @CreateDateColumn({
     name: "created_at",
     type: "timestamp with time zone",

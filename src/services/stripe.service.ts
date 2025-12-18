@@ -140,9 +140,14 @@ export class StripeService {
   /**
    * Retrieve a subscription by ID
    */
-  async getSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
+  async getSubscription(
+    subscriptionId: string,
+    expand?: string[],
+  ): Promise<Stripe.Subscription> {
     try {
-      return await this.stripe.subscriptions.retrieve(subscriptionId);
+      return await this.stripe.subscriptions.retrieve(subscriptionId, {
+        expand: expand || [],
+      });
     } catch (error) {
       this.logger.error(
         `Error retrieving subscription ${subscriptionId}:`,
@@ -325,5 +330,78 @@ export class StripeService {
       this.logger.error(`Error getting plan details for ${priceId}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * Retrieve a payment method by ID
+   * Used to get card details (brand, last4, expiry) from Stripe
+   */
+  async getPaymentMethod(
+    paymentMethodId: string,
+  ): Promise<Stripe.PaymentMethod> {
+    try {
+      return await this.stripe.paymentMethods.retrieve(paymentMethodId);
+    } catch (error) {
+      this.logger.error(
+        `Error retrieving payment method ${paymentMethodId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieve a payment intent by ID
+   * Used to get payment method from invoice payment_intent
+   */
+  async getPaymentIntent(
+    paymentIntentId: string,
+    expand?: string[],
+  ): Promise<Stripe.PaymentIntent> {
+    try {
+      return await this.stripe.paymentIntents.retrieve(paymentIntentId, {
+        expand: expand || [],
+      });
+    } catch (error) {
+      this.logger.error(
+        `Error retrieving payment intent ${paymentIntentId}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Extract card details from a Stripe Payment Method
+   * Returns safe-to-store card information (last4, brand, expiry)
+   */
+  extractCardDetails(paymentMethod: Stripe.PaymentMethod | null | undefined): {
+    paymentMethodId: string | null;
+    brand: string | null;
+    last4: string | null;
+    expMonth: number | null;
+    expYear: number | null;
+  } {
+    if (
+      !paymentMethod ||
+      paymentMethod.type !== "card" ||
+      !paymentMethod.card
+    ) {
+      return {
+        paymentMethodId: null,
+        brand: null,
+        last4: null,
+        expMonth: null,
+        expYear: null,
+      };
+    }
+
+    return {
+      paymentMethodId: paymentMethod.id,
+      brand: paymentMethod.card.brand || null,
+      last4: paymentMethod.card.last4 || null,
+      expMonth: paymentMethod.card.exp_month || null,
+      expYear: paymentMethod.card.exp_year || null,
+    };
   }
 }

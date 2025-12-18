@@ -61,6 +61,47 @@ export class OwnerGroupSubscription {
   })
   stripeCustomerId: string | null;
 
+  /**
+   * Current/default payment method on file for this subscription
+   */
+  @Column({
+    name: "stripe_payment_method_id",
+    type: "varchar",
+    length: 255,
+    nullable: true,
+  })
+  stripePaymentMethodId: string | null;
+
+  @Column({
+    name: "card_brand",
+    type: "varchar",
+    length: 50,
+    nullable: true,
+  })
+  cardBrand: string | null; // e.g., "visa", "mastercard", "amex"
+
+  @Column({
+    name: "card_last4",
+    type: "varchar",
+    length: 4,
+    nullable: true,
+  })
+  cardLast4: string | null; // Last 4 digits of card
+
+  @Column({
+    name: "card_exp_month",
+    type: "smallint",
+    nullable: true,
+  })
+  cardExpMonth: number | null; // 1-12
+
+  @Column({
+    name: "card_exp_year",
+    type: "smallint",
+    nullable: true,
+  })
+  cardExpYear: number | null; // e.g., 2025
+
   @Index()
   @Column({
     name: "status",

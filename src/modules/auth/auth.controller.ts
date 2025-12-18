@@ -27,22 +27,142 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post("register")
+  @ApiOperation({ summary: "Register a new user" })
+  @ApiResponse({
+    status: 201,
+    description: "User registered successfully",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: true },
+        statusCode: { type: "number", example: 201 },
+        message: { type: "string", example: "Registered successfully" },
+        data: {
+          type: "object",
+          properties: {
+            user: { type: "object" },
+            accessToken: { type: "string" },
+            refreshToken: { type: "string" },
+            isSubscribed: {
+              type: "boolean",
+              example: false,
+              description:
+                "Indicates if the user's owner group has an active subscription. Always false for new registrations.",
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Bad request - Email already exists",
+  })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post("login")
   @HttpCode(200)
+  @ApiOperation({ summary: "Login with email and password" })
+  @ApiResponse({
+    status: 200,
+    description: "User logged in successfully",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: true },
+        statusCode: { type: "number", example: 200 },
+        message: { type: "string", example: "Logged in successfully" },
+        data: {
+          type: "object",
+          properties: {
+            user: { type: "object" },
+            accessToken: { type: "string" },
+            refreshToken: { type: "string" },
+            isSubscribed: {
+              type: "boolean",
+              example: true,
+              description:
+                "Indicates if the user's owner group has an active subscription (ACTIVE or TRIALING status and not expired).",
+            },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Account not found",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid password",
+  })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
 
   @Post("refresh")
+  @ApiOperation({ summary: "Refresh access token" })
+  @ApiResponse({
+    status: 200,
+    description: "Token refreshed successfully",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: true },
+        statusCode: { type: "number", example: 200 },
+        message: { type: "string", example: "Token refreshed" },
+        data: {
+          type: "object",
+          properties: {
+            user: { type: "object" },
+            accessToken: { type: "string" },
+            refreshToken: { type: "string" },
+            isSubscribed: {
+              type: "boolean",
+              example: true,
+              description:
+                "Indicates if the user's owner group has an active subscription (ACTIVE or TRIALING status and not expired).",
+            },
+          },
+        },
+      },
+    },
+  })
   refresh(@Body() dto: RefreshTokenDto) {
     return this.authService.refresh(dto.refreshToken);
   }
 
   @Post("google")
+  @ApiOperation({ summary: "Login or register with Google" })
+  @ApiResponse({
+    status: 200,
+    description: "User logged in successfully via Google",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: true },
+        statusCode: { type: "number", example: 200 },
+        message: { type: "string", example: "Logged in successfully" },
+        data: {
+          type: "object",
+          properties: {
+            user: { type: "object" },
+            accessToken: { type: "string" },
+            refreshToken: { type: "string" },
+            isSubscribed: {
+              type: "boolean",
+              example: false,
+              description:
+                "Indicates if the user's owner group has an active subscription. False for new Google sign-ups, true/false for existing users based on their subscription status.",
+            },
+          },
+        },
+      },
+    },
+  })
   google(@Body() dto: GoogleSignInDto) {
     return this.authService.googleSignIn(dto.idToken);
   }

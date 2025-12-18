@@ -411,7 +411,52 @@ export class SubscriptionService {
       `Recording payment for subscription=${sub.id} invoice=${invoiceWithSubs.id} paymentIntent=${paymentIntentId} amount=${invoiceWithSubs.amount_paid}`,
     );
 
-    // Insert payment record
+    // Extract payment method details from invoice
+    let cardDetails = {
+      paymentMethodId: null as string | null,
+      brand: null as string | null,
+      last4: null as string | null,
+      expMonth: null as number | null,
+      expYear: null as number | null,
+    };
+
+    try {
+      // Try to get payment method from invoice's payment_intent
+      if (typeof invoiceWithSubs.payment_intent === "string") {
+        const paymentIntent = await this.stripeService.getPaymentIntent(
+          invoiceWithSubs.payment_intent,
+          ["payment_method"],
+        );
+        if (paymentIntent.payment_method) {
+          const pm =
+            typeof paymentIntent.payment_method === "string"
+              ? await this.stripeService.getPaymentMethod(
+                  paymentIntent.payment_method,
+                )
+              : paymentIntent.payment_method;
+          cardDetails = this.stripeService.extractCardDetails(pm);
+        }
+      } else if (
+        invoiceWithSubs.payment_intent &&
+        typeof invoiceWithSubs.payment_intent === "object"
+      ) {
+        const pm = (invoiceWithSubs.payment_intent as any).payment_method;
+        if (pm) {
+          const paymentMethod =
+            typeof pm === "string"
+              ? await this.stripeService.getPaymentMethod(pm)
+              : pm;
+          cardDetails = this.stripeService.extractCardDetails(paymentMethod);
+        }
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to extract payment method from invoice ${invoiceWithSubs.id}`,
+        err as any,
+      );
+    }
+
+    // Insert payment record with card details
     await this.payments.save(
       this.payments.create({
         ownerGroupSubscription: sub,
@@ -423,6 +468,11 @@ export class SubscriptionService {
         paidAt: invoiceWithSubs.status_transitions?.paid_at
           ? new Date(invoiceWithSubs.status_transitions.paid_at * 1000)
           : new Date(),
+        stripePaymentMethodId: cardDetails.paymentMethodId,
+        cardBrand: cardDetails.brand,
+        cardLast4: cardDetails.last4,
+        cardExpMonth: cardDetails.expMonth,
+        cardExpYear: cardDetails.expYear,
       }),
     );
 
@@ -507,6 +557,38 @@ export class SubscriptionService {
       where: { ownerGroupId },
     });
 
+    // Extract payment method details from subscription
+    let cardDetails = {
+      paymentMethodId: null as string | null,
+      brand: null as string | null,
+      last4: null as string | null,
+      expMonth: null as number | null,
+      expYear: null as number | null,
+    };
+
+    try {
+      // Get default payment method from subscription
+      // Note: We need to retrieve subscription with expanded payment_method
+      const expandedSubscription = await this.stripeService.getSubscription(
+        subscription.id,
+        ["default_payment_method"],
+      );
+      if (expandedSubscription.default_payment_method) {
+        const pm =
+          typeof expandedSubscription.default_payment_method === "string"
+            ? await this.stripeService.getPaymentMethod(
+                expandedSubscription.default_payment_method,
+              )
+            : expandedSubscription.default_payment_method;
+        cardDetails = this.stripeService.extractCardDetails(pm);
+      }
+    } catch (err) {
+      this.logger.warn(
+        `Failed to extract payment method from subscription ${subscription.id}`,
+        err as any,
+      );
+    }
+
     const payload: Partial<OwnerGroupSubscription> = {
       ownerGroupId,
       owner,
@@ -533,6 +615,12 @@ export class SubscriptionService {
       trialEnd: subscriptionWithPeriods.trial_end
         ? new Date(subscriptionWithPeriods.trial_end * 1000)
         : (sub?.trialEnd ?? null),
+      // Store payment method details
+      stripePaymentMethodId: cardDetails.paymentMethodId,
+      cardBrand: cardDetails.brand,
+      cardLast4: cardDetails.last4,
+      cardExpMonth: cardDetails.expMonth,
+      cardExpYear: cardDetails.expYear,
     };
 
     if (sub) {
