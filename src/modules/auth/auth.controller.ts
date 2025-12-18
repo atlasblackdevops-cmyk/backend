@@ -256,6 +256,12 @@ export class AuthController {
             },
             createdAt: { type: "string", format: "date-time" },
             updatedAt: { type: "string", format: "date-time" },
+            isSubscribed: {
+              type: "boolean",
+              example: true,
+              description:
+                "Indicates if the user's owner group has an active subscription (ACTIVE or TRIALING status and not expired).",
+            },
           },
         },
       },

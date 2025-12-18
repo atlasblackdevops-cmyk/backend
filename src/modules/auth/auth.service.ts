@@ -355,6 +355,10 @@ export class AuthService {
       responseData.permissions = permissions;
     }
 
+    // Add subscription status
+    const isSubscribed = await this.checkSubscriptionStatus(user);
+    responseData.isSubscribed = isSubscribed;
+
     return {
       data: responseData,
     };
