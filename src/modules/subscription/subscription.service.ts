@@ -352,6 +352,7 @@ export class SubscriptionService {
       try {
         const refreshed = (await this.stripeService.getInvoice(
           invoiceWithSubs.id,
+          ["subscription", "payment_intent"],
         )) as Stripe.Invoice & {
           subscription?: string | Stripe.Subscription | null;
           payment_intent?: string | Stripe.PaymentIntent | null;
@@ -411,6 +412,33 @@ export class SubscriptionService {
       `Recording payment for subscription=${sub.id} invoice=${invoiceWithSubs.id} paymentIntent=${paymentIntentId} amount=${invoiceWithSubs.amount_paid}`,
     );
 
+    // If payment_intent is not available or not expanded, refetch invoice with payment_intent expanded
+    if (
+      !invoiceWithSubs.payment_intent ||
+      (typeof invoiceWithSubs.payment_intent === "object" &&
+        !(invoiceWithSubs.payment_intent as any).payment_method)
+    ) {
+      try {
+        const refreshedInvoice = await this.stripeService.getInvoice(
+          invoiceWithSubs.id,
+          ["subscription", "payment_intent"],
+        );
+        invoiceWithSubs = refreshedInvoice as Stripe.Invoice & {
+          subscription?: string | Stripe.Subscription | null;
+          payment_intent?: string | Stripe.PaymentIntent | null;
+          customer?: string | Stripe.Customer | null;
+        };
+        this.logger.debug(
+          `Refetched invoice ${invoiceWithSubs.id} with payment_intent expanded`,
+        );
+      } catch (err) {
+        this.logger.warn(
+          `Failed to refetch invoice ${invoiceWithSubs.id} with payment_intent`,
+          err as any,
+        );
+      }
+    }
+
     // Extract payment method details from invoice
     let cardDetails = {
       paymentMethodId: null as string | null,
@@ -421,7 +449,7 @@ export class SubscriptionService {
     };
 
     try {
-      // Try to get payment method from invoice's payment_intent
+      //Try to get payment method from invoice's payment_intent
       if (typeof invoiceWithSubs.payment_intent === "string") {
         const paymentIntent = await this.stripeService.getPaymentIntent(
           invoiceWithSubs.payment_intent,
@@ -435,6 +463,9 @@ export class SubscriptionService {
                 )
               : paymentIntent.payment_method;
           cardDetails = this.stripeService.extractCardDetails(pm);
+          this.logger.debug(
+            `Extracted payment method from payment intent for invoice ${invoiceWithSubs.id}`,
+          );
         }
       } else if (
         invoiceWithSubs.payment_intent &&
@@ -447,10 +478,47 @@ export class SubscriptionService {
               ? await this.stripeService.getPaymentMethod(pm)
               : pm;
           cardDetails = this.stripeService.extractCardDetails(paymentMethod);
+          this.logger.debug(
+            `Extracted payment method from expanded payment intent for invoice ${invoiceWithSubs.id}`,
+          );
         }
       }
+
+      //If payment method not found from payment_intent, try subscription's default_payment_method
+      if (!cardDetails.paymentMethodId && subscriptionId && sub) {
+        try {
+          const subscription = await this.stripeService.getSubscription(
+            subscriptionId,
+            ["default_payment_method"],
+          );
+          if (subscription.default_payment_method) {
+            const pm =
+              typeof subscription.default_payment_method === "string"
+                ? await this.stripeService.getPaymentMethod(
+                    subscription.default_payment_method,
+                  )
+                : subscription.default_payment_method;
+            cardDetails = this.stripeService.extractCardDetails(pm);
+            this.logger.debug(
+              `Extracted payment method from subscription default_payment_method for invoice ${invoiceWithSubs.id}`,
+            );
+          }
+        } catch (subErr) {
+          this.logger.warn(
+            `Failed to get payment method from subscription for invoice ${invoiceWithSubs.id}`,
+            subErr as any,
+          );
+        }
+      }
+
+      // Log if we still don't have payment method details
+      if (!cardDetails.paymentMethodId) {
+        this.logger.warn(
+          `Could not extract payment method details for invoice ${invoiceWithSubs.id}. Payment intent: ${typeof invoiceWithSubs.payment_intent === "string" ? invoiceWithSubs.payment_intent : "object/expanded"}`,
+        );
+      }
     } catch (err) {
-      this.logger.warn(
+      this.logger.error(
         `Failed to extract payment method from invoice ${invoiceWithSubs.id}`,
         err as any,
       );

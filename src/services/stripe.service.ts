@@ -287,10 +287,13 @@ export class StripeService {
   /**
    * Retrieve an invoice (used when webhook payload is missing fields)
    */
-  async getInvoice(invoiceId: string): Promise<Stripe.Invoice> {
+  async getInvoice(
+    invoiceId: string,
+    expand?: string[],
+  ): Promise<Stripe.Invoice> {
     try {
       return await this.stripe.invoices.retrieve(invoiceId, {
-        expand: ["subscription"],
+        expand: expand || ["subscription", "payment_intent"],
       });
     } catch (error) {
       this.logger.error(`Error retrieving invoice ${invoiceId}:`, error);
