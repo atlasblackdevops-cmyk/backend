@@ -62,6 +62,10 @@ export class User {
   @Column({ name: "google_sub", type: "varchar", nullable: true, unique: true })
   googleSub: string | null;
 
+  @Column({ name: "owner_group_id", type: "uuid", nullable: true })
+  @Index()
+  ownerGroupId: string | null;
+
   @CreateDateColumn({
     name: "created_at",
     type: "timestamp with time zone",

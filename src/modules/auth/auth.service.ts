@@ -5,9 +5,14 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { InjectRepository } from "@nestjs/typeorm";
+import { randomUUID } from "crypto";
 import { Repository } from "typeorm";
 import { AuthConfig } from "../../config/auth.config";
 import { Farm } from "../../database/entities/farm.entity";
+import {
+  OwnerGroupSubscription,
+  SubscriptionStatus,
+} from "../../database/entities/owner-group-subscription.entity";
 import { Role } from "../../database/entities/role.entity";
 import { UserPermission } from "../../database/entities/user-permission.entity";
 import { User } from "../../database/entities/user.entity";
@@ -31,6 +36,8 @@ export class AuthService {
     @InjectRepository(Farm) private readonly farms: Repository<Farm>,
     @InjectRepository(UserPermission)
     private readonly userPermissions: Repository<UserPermission>,
+    @InjectRepository(OwnerGroupSubscription)
+    private readonly subscriptions: Repository<OwnerGroupSubscription>,
     private readonly bcrypt: BcryptService,
     private readonly jwt: JwtService,
     private readonly authConfig: AuthConfig,
@@ -47,6 +54,9 @@ export class AuthService {
       role = await this.roles.save(this.roles.create({ roleName: "OWNER" }));
     }
 
+    // Generate ownerGroupId for OWNER role (only owners need group ID)
+    const ownerGroupId = randomUUID();
+
     const user = this.users.create({
       email: dto.email,
       password: this.bcrypt.hashSync(dto.password),
@@ -54,6 +64,7 @@ export class AuthService {
       mobile: dto.mobile ?? null,
       emailVerified: false,
       role,
+      ownerGroupId, // Assign group ID to owner
     });
     const saved = await this.users.save(user);
 
@@ -68,12 +79,15 @@ export class AuthService {
     const tokens = await this.issueTokens(userWithRelations);
     const userWithFarmCheck =
       await this.enrichUserWithFarmCheck(userWithRelations);
+    // New users don't have subscriptions yet, so default to false
+    const isSubscribed = false;
     return {
       message: "Registered successfully",
       data: {
         user: userWithFarmCheck,
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
+        isSubscribed,
       },
     };
   }
@@ -141,6 +155,9 @@ export class AuthService {
       // Upload Google picture to S3 and get the key
       const profilePictureKey = await uploadGooglePicture(picture);
 
+      // Generate ownerGroupId for OWNER role (only owners need group ID)
+      const ownerGroupId = randomUUID();
+
       const toCreate = this.users.create({
         email,
         password: this.bcrypt.hashSync(
@@ -151,6 +168,7 @@ export class AuthService {
         emailVerified: true,
         googleSub: sub,
         role: defaultRole,
+        ownerGroupId, // Assign group ID to owner
       });
       try {
         user = await this.users.save(toCreate);
@@ -213,12 +231,14 @@ export class AuthService {
     const tokens = await this.issueTokens(user);
     console.log("===========tokens============", tokens);
     const userWithFarmCheck = await this.enrichUserWithFarmCheck(user);
+    const isSubscribed = await this.checkSubscriptionStatus(user);
     return {
       message: "Logged in successfully",
       data: {
         user: userWithFarmCheck,
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
+        isSubscribed,
       },
     };
   }
@@ -233,12 +253,14 @@ export class AuthService {
     this.bcrypt.compareSync(dto.password, user.password);
     const tokens = await this.issueTokens(user);
     const userWithFarmCheck = await this.enrichUserWithFarmCheck(user);
+    const isSubscribed = await this.checkSubscriptionStatus(user);
     return {
       message: "Logged in successfully",
       data: {
         user: userWithFarmCheck,
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
+        isSubscribed,
       },
     };
   }
@@ -259,12 +281,14 @@ export class AuthService {
     if (!user) throw new NotFoundException("Account not found.");
     const tokens = await this.issueTokens(user);
     const userWithFarmCheck = await this.enrichUserWithFarmCheck(user);
+    const isSubscribed = await this.checkSubscriptionStatus(user);
     return {
       message: "Token refreshed",
       data: {
         user: userWithFarmCheck,
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
+        isSubscribed,
       },
     };
   }
@@ -330,6 +354,10 @@ export class AuthService {
     ) {
       responseData.permissions = permissions;
     }
+
+    // Add subscription status
+    const isSubscribed = await this.checkSubscriptionStatus(user);
+    responseData.isSubscribed = isSubscribed;
 
     return {
       data: responseData,
@@ -405,5 +433,42 @@ export class AuthService {
 
     // Generate presigned URL for profile picture if it exists
     return this.s3Service.attachPresignedUrls(rest, ["profilePicture"]);
+  }
+
+  /**
+   * Check if user's owner group has an active subscription
+   * Returns true if subscription is ACTIVE or TRIALING and not expired
+   */
+  private async checkSubscriptionStatus(user: User): Promise<boolean> {
+    // If user doesn't have ownerGroupId, they can't have a subscription
+    if (!user.ownerGroupId) {
+      return false;
+    }
+
+    const subscription = await this.subscriptions.findOne({
+      where: { ownerGroupId: user.ownerGroupId },
+    });
+
+    // No subscription found
+    if (!subscription) {
+      return false;
+    }
+
+    // Check if subscription is active or trialing
+    const isActiveStatus =
+      subscription.status === SubscriptionStatus.ACTIVE ||
+      subscription.status === SubscriptionStatus.TRIALING;
+
+    // Check if subscription period hasn't expired
+    const isNotExpired =
+      !subscription.currentPeriodEnd ||
+      subscription.currentPeriodEnd.getTime() > Date.now();
+
+    // Check if not canceled (or canceling at period end but still valid)
+    const isNotCanceled =
+      !subscription.canceledAt &&
+      (!subscription.cancelAtPeriodEnd || isNotExpired);
+
+    return isActiveStatus && isNotExpired && isNotCanceled;
   }
 }

@@ -4,6 +4,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { AuthConfig } from "../../config/auth.config";
 import { GoogleConfig } from "../../config/google.config";
 import { Farm } from "../../database/entities/farm.entity";
+import { OwnerGroupSubscription } from "../../database/entities/owner-group-subscription.entity";
 import { Role } from "../../database/entities/role.entity";
 import { UserPermission } from "../../database/entities/user-permission.entity";
 import { User } from "../../database/entities/user.entity";
@@ -15,7 +16,13 @@ import { JwtAccessStrategy } from "./strategies/jwt-access.strategy";
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, Role, Farm, UserPermission]),
+    TypeOrmModule.forFeature([
+      User,
+      Role,
+      Farm,
+      UserPermission,
+      OwnerGroupSubscription,
+    ]),
     JwtModule.registerAsync({
       inject: [AuthConfig],
       useFactory: (auth: AuthConfig) => ({
