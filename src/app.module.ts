@@ -10,6 +10,7 @@ import { CropHealthNotesModule } from "./modules/crop-health-notes/crop-health-n
 import { FarmModule } from "./modules/farm/farm.module";
 import { FertilizerModule } from "./modules/fertilizer/fertilizer.module";
 import { FieldsModule } from "./modules/fields/fields.module";
+import { FinanceModule } from "./modules/finance/finance.module";
 import { GlobalModule } from "./modules/global/global.module";
 import { HarvestsModule } from "./modules/harvests/harvests.module";
 import { IrrigationModule } from "./modules/irrigation/irrigation.module";
@@ -36,6 +37,7 @@ import { UsersModule } from "./modules/users/users.module";
     FertilizerModule,
     CropHealthNotesModule,
     SubscriptionModule,
+    FinanceModule,
   ],
   controllers: [AppController],
   providers: [AppService],

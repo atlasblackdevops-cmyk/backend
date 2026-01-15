@@ -283,7 +283,7 @@ export class ValidationPipe implements PipeTransform<any> {
           list[err.property] = Object.values(err.constraints).pop();
         }
       }
-      if (err.children.length) {
+      if (err.children?.length) {
         list[err.property] = this.childError(err.children);
       }
       return list;
