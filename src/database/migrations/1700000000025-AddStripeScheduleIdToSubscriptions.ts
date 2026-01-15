@@ -34,5 +34,3 @@ export class AddStripeScheduleIdToSubscriptions1700000000025
     `);
   }
 }
-
-

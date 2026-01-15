@@ -36,4 +36,3 @@ export class AddPlanInfoToSubscriptionPayments1700000000023
     `);
   }
 }
-

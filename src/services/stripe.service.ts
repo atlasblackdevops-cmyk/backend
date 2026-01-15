@@ -318,10 +318,9 @@ export class StripeService {
           );
         } catch (error: any) {
           // If schedule creation fails, verify subscription is still active
-          const verifySubscription = await this.stripe.subscriptions.retrieve(
-            subscriptionId,
-          );
-          
+          const verifySubscription =
+            await this.stripe.subscriptions.retrieve(subscriptionId);
+
           if (
             verifySubscription.status === "canceled" ||
             verifySubscription.status === "incomplete_expired"
@@ -417,9 +416,8 @@ export class StripeService {
         this.logger.warn(
           `Subscription ${subscriptionId} does not have current_period_end in provided object. Fetching fresh subscription.`,
         );
-        const freshSubscription = await this.stripe.subscriptions.retrieve(
-          subscriptionId,
-        );
+        const freshSubscription =
+          await this.stripe.subscriptions.retrieve(subscriptionId);
         currentPeriodEnd = (freshSubscription as any).current_period_end;
       }
 
@@ -432,7 +430,7 @@ export class StripeService {
       // Check if subscription already has a schedule
       // The subscription was retrieved with schedule expanded, so check it properly
       let finalScheduleId: string | undefined;
-      
+
       if (subscription.schedule) {
         finalScheduleId =
           typeof subscription.schedule === "string"
@@ -448,9 +446,7 @@ export class StripeService {
 
       const currentPriceId = subscription.items.data[0]?.price?.id as string;
       if (!currentPriceId) {
-        throw new Error(
-          `Subscription ${subscriptionId} has no price in items`,
-        );
+        throw new Error(`Subscription ${subscriptionId} has no price in items`);
       }
 
       // Get current_period_start for Phase 0
@@ -467,9 +463,8 @@ export class StripeService {
           `Subscription ${subscriptionId} already has a schedule ${finalScheduleId}. Updating existing schedule.`,
         );
 
-        const existingSchedule = await this.stripe.subscriptionSchedules.retrieve(
-          finalScheduleId,
-        );
+        const existingSchedule =
+          await this.stripe.subscriptionSchedules.retrieve(finalScheduleId);
 
         // Get Phase 0 details from existing schedule
         const phase0 = existingSchedule.phases[0];
@@ -506,7 +501,7 @@ export class StripeService {
             // Release the schedule (this removes it from subscription but keeps subscription active)
             await this.stripe.subscriptionSchedules.release(finalScheduleId);
             this.logger.log(`Released schedule ${finalScheduleId}`);
-            
+
             // Wait for Stripe to process the release (longer wait than cancel)
             await new Promise((resolve) => setTimeout(resolve, 1000));
           } catch (releaseError: any) {
@@ -514,7 +509,9 @@ export class StripeService {
             if (
               releaseError.type !== "StripeInvalidRequestError" ||
               (!releaseError.message?.includes("already released") &&
-                !releaseError.message?.includes("No such subscription_schedule"))
+                !releaseError.message?.includes(
+                  "No such subscription_schedule",
+                ))
             ) {
               this.logger.warn(
                 `Failed to release schedule ${finalScheduleId}:`,
@@ -578,7 +575,11 @@ export class StripeService {
                   // Phase 1: New price - use duration based on new price's billing interval
                   items: [{ price: newPriceId, quantity: 1 }],
                   duration: {
-                    interval: billingInterval as "day" | "week" | "month" | "year",
+                    interval: billingInterval as
+                      | "day"
+                      | "week"
+                      | "month"
+                      | "year",
                     interval_count: billingIntervalCount,
                   },
                   // No prorations when transitioning to downgrade
@@ -589,12 +590,13 @@ export class StripeService {
               // No prorations when updating schedule for downgrade
               proration_behavior: "none",
               // Add metadata here (can't be set when using from_subscription)
-              metadata: ownerGroupId && ownerId
-                ? {
-                    ownerGroupId,
-                    ownerId,
-                  }
-                : undefined,
+              metadata:
+                ownerGroupId && ownerId
+                  ? {
+                      ownerGroupId,
+                      ownerId,
+                    }
+                  : undefined,
             },
           );
         } else {
@@ -627,7 +629,11 @@ export class StripeService {
                   items: [{ price: newPriceId, quantity: 1 }],
                   start_date: phase1StartDate,
                   duration: {
-                    interval: billingInterval as "day" | "week" | "month" | "year",
+                    interval: billingInterval as
+                      | "day"
+                      | "week"
+                      | "month"
+                      | "year",
                     interval_count: billingIntervalCount,
                   },
                   // No prorations when transitioning to downgrade
@@ -637,12 +643,13 @@ export class StripeService {
               end_behavior: "release",
               // No prorations when updating schedule for downgrade
               proration_behavior: "none",
-              metadata: ownerGroupId && ownerId
-                ? {
-                    ownerGroupId,
-                    ownerId,
-                  }
-                : undefined,
+              metadata:
+                ownerGroupId && ownerId
+                  ? {
+                      ownerGroupId,
+                      ownerId,
+                    }
+                  : undefined,
             },
           );
         }
@@ -716,12 +723,13 @@ export class StripeService {
           end_behavior: "release",
           // No prorations when updating schedule for downgrade
           proration_behavior: "none",
-          metadata: ownerGroupId && ownerId
-            ? {
-                ownerGroupId,
-                ownerId,
-              }
-            : undefined,
+          metadata:
+            ownerGroupId && ownerId
+              ? {
+                  ownerGroupId,
+                  ownerId,
+                }
+              : undefined,
         });
       }
 

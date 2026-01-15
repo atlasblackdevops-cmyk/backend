@@ -34,4 +34,3 @@ export class AddBillingIntervalToSubscriptionPayments1700000000024
     `);
   }
 }
-
