@@ -388,10 +388,9 @@ export class PlantingsService {
       // throw new NotFoundException("Farm not found");
       return {
         message: "Planting statistics fetched successfully",
-        data:{},
+        data: {},
       };
     }
-
 
     // Single pass processing: build all data structures simultaneously
     const plantingsByField = new Map<string, any>();

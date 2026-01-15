@@ -47,7 +47,7 @@ export class ListFieldsDto {
 
   @ApiPropertyOptional({
     description: "Search term applied to field name or soil type",
-    minLength:1
+    minLength: 1,
   })
   @IsOptional()
   @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))

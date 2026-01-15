@@ -6,6 +6,7 @@ import { GlobalModule } from "../modules/global/global.module";
 import { BackfillOwnerGroupIdCommand } from "./backfill-owner-group-id.command";
 import { CreateAdminUserCommand } from "./create-admin-user.command";
 import { SeedBreedsCommand } from "./seed-breeds.command";
+import { SeedExpenseCategoriesCommand } from "./seed-expense-categories.command";
 import { SeedPermissionsCommand } from "./seed-permissions.command";
 import { SeedSpeciesCommand } from "./seed-species.command";
 import { SeedSuperAdminCommand } from "./seed-super-admin.command";
@@ -24,6 +25,7 @@ import { SeedSuperAdminCommand } from "./seed-super-admin.command";
     SeedPermissionsCommand,
     SeedSpeciesCommand,
     SeedBreedsCommand,
+    SeedExpenseCategoriesCommand,
     BackfillOwnerGroupIdCommand,
   ],
 })
