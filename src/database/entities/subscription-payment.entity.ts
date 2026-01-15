@@ -109,6 +109,60 @@ export class SubscriptionPayment {
   })
   cardExpYear: number | null; // e.g., 2025
 
+  /**
+   * Stripe Price ID for the plan this payment was made for
+   * Useful for tracking which plan was active when payment occurred
+   */
+  @Index()
+  @Column({
+    name: "stripe_price_id",
+    type: "varchar",
+    length: 255,
+    nullable: true,
+  })
+  stripePriceId: string | null;
+
+  /**
+   * Start date of the billing period this payment covers
+   */
+  @Column({
+    name: "period_start",
+    type: "timestamp with time zone",
+    nullable: true,
+  })
+  periodStart: Date | null;
+
+  /**
+   * End date of the billing period this payment covers
+   */
+  @Column({
+    name: "period_end",
+    type: "timestamp with time zone",
+    nullable: true,
+  })
+  periodEnd: Date | null;
+
+  /**
+   * Billing interval for the plan (e.g., "month", "year")
+   */
+  @Column({
+    name: "billing_interval",
+    type: "varchar",
+    length: 20,
+    nullable: true,
+  })
+  billingInterval: string | null; // e.g., "month", "year"
+
+  /**
+   * Number of intervals (e.g., 1 for "1 month", 6 for "6 months", 1 for "1 year")
+   */
+  @Column({
+    name: "billing_interval_count",
+    type: "smallint",
+    nullable: true,
+  })
+  billingIntervalCount: number | null; // e.g., 1, 6, 12
+
   @CreateDateColumn({
     name: "created_at",
     type: "timestamp with time zone",

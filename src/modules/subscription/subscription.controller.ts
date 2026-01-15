@@ -60,10 +60,44 @@ export class SubscriptionController {
   @Post("change-plan")
   @Auth([UserRole.OWNER])
   @ApiBearerAuth()
-  @ApiOperation({ summary: "Change subscription plan (owner only)" })
+  @ApiOperation({
+    summary: "Change subscription plan or reactivate (owner only)",
+    description:
+      "Changes subscription plan (upgrade/downgrade). If subscription is pending cancellation, it will be reactivated. If same plan is selected while pending cancellation, it will just reactivate.",
+  })
   @ApiResponse({
     status: 200,
-    description: "Plan updated",
+    description: "Plan updated or subscription reactivated",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: true },
+        statusCode: { type: "number", example: 200 },
+        message: {
+          type: "string",
+          example: "Subscription plan updated successfully",
+        },
+        data: {
+          type: "object",
+          properties: {
+            subscriptionId: { type: "string", example: "sub_123" },
+            priceId: { type: "string", example: "price_123" },
+            status: { type: "string", example: "active" },
+            reactivated: {
+              type: "boolean",
+              example: false,
+              description:
+                "True if subscription was reactivated (was pending cancellation)",
+            },
+            planChanged: {
+              type: "boolean",
+              example: true,
+              description: "True if plan was actually changed",
+            },
+          },
+        },
+      },
+    },
   })
   async changePlan(
     @AuthUser() user: { id: string },
@@ -74,7 +108,7 @@ export class SubscriptionController {
       dto.newPriceId,
     );
     return {
-      message: "Subscription plan updated",
+      message: result.message,
       data: result,
     };
   }

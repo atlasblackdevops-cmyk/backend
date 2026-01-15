@@ -53,6 +53,19 @@ export class OwnerGroupSubscription {
   })
   stripeSubscriptionId: string | null;
 
+  /**
+   * Stripe Subscription Schedule ID - stored alongside subscription ID per Stripe best practices
+   * Used to modify subscriptions when a schedule is attached
+   */
+  @Index()
+  @Column({
+    name: "stripe_schedule_id",
+    type: "varchar",
+    length: 255,
+    nullable: true,
+  })
+  stripeScheduleId: string | null;
+
   @Column({
     name: "stripe_customer_id",
     type: "varchar",
