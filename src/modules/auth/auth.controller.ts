@@ -92,12 +92,8 @@ export class AuthController {
     },
   })
   @ApiResponse({
-    status: 404,
-    description: "Account not found",
-  })
-  @ApiResponse({
     status: 400,
-    description: "Invalid password",
+    description: "Invalid credentials",
   })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);

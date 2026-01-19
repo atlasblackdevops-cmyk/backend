@@ -248,9 +248,23 @@ export class AuthService {
       where: { email: dto.email },
       relations: { role: true, currentFarm: true },
     });
-    if (!user) throw new NotFoundException("Account not found.");
 
-    this.bcrypt.compareSync(dto.password, user.password);
+    // Use a dummy hash if user doesn't exist to prevent timing attacks
+    const passwordHash =
+      user?.password || "$2b$10$dummy.hash.to.prevent.timing.attacks";
+
+    // Compare password without throwing error, get boolean result
+    const isPasswordValid = this.bcrypt.compareSync(
+      dto.password,
+      passwordHash,
+      false,
+    );
+
+    // If user doesn't exist or password is invalid, return generic error
+    if (!user || !isPasswordValid) {
+      throw new BadRequestException("Invalid credentials");
+    }
+
     const tokens = await this.issueTokens(user);
     const userWithFarmCheck = await this.enrichUserWithFarmCheck(user);
     const isSubscribed = await this.checkSubscriptionStatus(user);

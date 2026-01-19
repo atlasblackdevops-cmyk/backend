@@ -54,6 +54,49 @@ export class GroupsService {
   }
 
   /**
+   * Calculate age in months from birthdate
+   */
+  private calculateAgeInMonths(birthdate: Date | null): number | null {
+    if (!birthdate) return null;
+    const today = new Date();
+    const birth = new Date(birthdate);
+    const years = today.getFullYear() - birth.getFullYear();
+    const months = today.getMonth() - birth.getMonth();
+    const days = today.getDate() - birth.getDate();
+
+    let totalMonths = years * 12 + months;
+
+    // Adjust if birthday hasn't occurred this month
+    if (days < 0) {
+      totalMonths--;
+    }
+
+    return totalMonths;
+  }
+
+  /**
+   * Format age in months as a readable string
+   * Examples: "8 months", "1 month", "1 year 4 months", "2 years"
+   */
+  private formatAgeString(totalMonths: number): string {
+    if (totalMonths < 12) {
+      return totalMonths === 1 ? "1 month" : `${totalMonths} months`;
+    }
+
+    const years = Math.floor(totalMonths / 12);
+    const months = totalMonths % 12;
+
+    if (months === 0) {
+      return years === 1 ? "1 year" : `${years} years`;
+    }
+
+    const yearStr = years === 1 ? "1 year" : `${years} years`;
+    const monthStr = months === 1 ? "1 month" : `${months} months`;
+
+    return `${yearStr} ${monthStr}`;
+  }
+
+  /**
    * Get latest weight for an animal
    */
   private async getLatestWeight(animalId: string): Promise<number | null> {
@@ -322,18 +365,19 @@ export class GroupsService {
                 .getRawMany()
             : [];
 
-        const ages: number[] = [];
+        const agesInMonths: number[] = [];
         for (const animal of animalsWithBirthdates) {
-          const age = this.calculateAge(animal.birthdate);
-          if (age !== null) {
-            ages.push(age);
+          const ageInMonths = this.calculateAgeInMonths(animal.birthdate);
+          if (ageInMonths !== null) {
+            agesInMonths.push(ageInMonths);
           }
         }
 
-        let averageAge: number | null = null;
-        if (ages.length > 0) {
-          const sum = ages.reduce((acc, age) => acc + age, 0);
-          averageAge = sum / ages.length;
+        let averageAge: string | null = null;
+        if (agesInMonths.length > 0) {
+          const sum = agesInMonths.reduce((acc, months) => acc + months, 0);
+          const averageMonths = Math.round(sum / agesInMonths.length);
+          averageAge = this.formatAgeString(averageMonths);
         }
 
         return {
@@ -341,8 +385,7 @@ export class GroupsService {
           animalCount,
           averageWeight:
             averageWeight !== null ? Number(averageWeight.toFixed(2)) : null,
-          averageAge:
-            averageAge !== null ? Number(averageAge.toFixed(2)) : null,
+          averageAge,
         };
       }),
     );

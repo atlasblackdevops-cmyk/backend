@@ -169,10 +169,11 @@ export class GroupsController {
                     example: 450.5,
                   },
                   averageAge: {
-                    type: "number",
+                    type: "string",
                     nullable: true,
-                    description: "Average age of animals in this group",
-                    example: 3.2,
+                    description:
+                      "Average age of animals in this group (formatted as 'X months' or 'X years Y months')",
+                    example: "1 year 4 months",
                   },
                   createdAt: {
                     type: "string",
