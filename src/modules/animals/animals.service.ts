@@ -149,14 +149,40 @@ export class AnimalsService {
 
     const qb = this.animalRepo
       .createQueryBuilder("animal")
-      .leftJoinAndSelect("animal.farm", "farm")
-      .leftJoinAndSelect("animal.createdBy", "createdBy")
-      .leftJoinAndSelect("animal.updatedBy", "updatedBy")
-      .leftJoinAndSelect("animal.speciesRelation", "species")
-      .leftJoinAndSelect("animal.breedRelation", "breed")
-      .leftJoinAndSelect("breed.species", "breedSpecies")
+      .leftJoin("animal.farm", "farm")
+      .leftJoin("animal.createdBy", "createdBy")
+      .leftJoin("animal.updatedBy", "updatedBy")
+      .leftJoin("animal.speciesRelation", "species")
+      .leftJoin("animal.breedRelation", "breed")
+      .leftJoin("breed.species", "breedSpecies")
       .where("farm.id = :farmId", { farmId })
       .andWhere("animal.deletedAt IS NULL")
+      .select([
+        "animal.id",
+        "animal.name",
+        "animal.gender",
+        "animal.birthdate",
+        "animal.photo",
+        "animal.isActive",
+        "animal.createdAt",
+        "animal.updatedAt",
+        "animal.deletedAt",
+      ])
+      .addSelect("farm.id", "farm_id")
+      .addSelect("farm.farmName", "farm_farmName")
+      .addSelect("createdBy.id", "createdBy_id")
+      .addSelect("createdBy.name", "createdBy_name")
+      .addSelect("updatedBy.id", "updatedBy_id")
+      .addSelect("updatedBy.name", "updatedBy_name")
+      .addSelect("species.id", "species_id")
+      .addSelect("species.name", "species_name")
+      .addSelect("species.slug", "species_slug")
+      .addSelect("breed.id", "breed_id")
+      .addSelect("breed.name", "breed_name")
+      .addSelect("breed.slug", "breed_slug")
+      .addSelect("breedSpecies.id", "breedSpecies_id")
+      .addSelect("breedSpecies.name", "breedSpecies_name")
+      .addSelect("breedSpecies.slug", "breedSpecies_slug")
       .orderBy("animal.createdAt", "DESC");
 
     if (query.search) {
@@ -187,7 +213,69 @@ export class AnimalsService {
     }
 
     const total = await qb.getCount();
-    const animals = await qb.skip(skip).take(limit).getMany();
+    const animalsRaw = await qb.skip(skip).take(limit).getRawMany();
+
+    // Transform raw results to structured objects
+    const animals = animalsRaw.map((animal) => {
+      // Get species and breed from the raw result
+      const species = animal.species_id
+        ? {
+            id: animal.species_id,
+            name: animal.species_name,
+            slug: animal.species_slug,
+          }
+        : null;
+
+      const breed = animal.breed_id
+        ? {
+            id: animal.breed_id,
+            name: animal.breed_name,
+            slug: animal.breed_slug,
+            species: animal.breedSpecies_id
+              ? {
+                  id: animal.breedSpecies_id,
+                  name: animal.breedSpecies_name,
+                  slug: animal.breedSpecies_slug,
+                }
+              : null,
+          }
+        : null;
+
+      return {
+        id: animal.animal_id || animal.id,
+        name: animal.animal_name || animal.name,
+        gender: animal.animal_gender || animal.gender,
+        birthdate: animal.animal_birthdate || animal.birthdate,
+        photo: animal.animal_photo || animal.photo,
+        isActive:
+          animal.animal_isActive !== undefined
+            ? animal.animal_isActive
+            : animal.isActive,
+        createdAt: animal.animal_createdAt || animal.createdAt,
+        updatedAt: animal.animal_updatedAt || animal.updatedAt,
+        deletedAt: animal.animal_deletedAt || animal.deletedAt,
+        farm: animal.farm_id
+          ? {
+              id: animal.farm_id,
+              farmName: animal.farm_farmName,
+            }
+          : null,
+        createdBy: animal.createdBy_id
+          ? {
+              id: animal.createdBy_id,
+              name: animal.createdBy_name,
+            }
+          : null,
+        updatedBy: animal.updatedBy_id
+          ? {
+              id: animal.updatedBy_id,
+              name: animal.updatedBy_name,
+            }
+          : null,
+        speciesRelation: species,
+        breedRelation: breed,
+      };
+    });
 
     // Convert photo paths to presigned URLs
     const animalsWithUrls = await this.s3Service.attachPresignedUrlsToMany(

@@ -278,9 +278,9 @@ export class GroupsService {
         "group.createdAt",
         "group.updatedAt",
         "createdBy.id",
-        "createdBy.email",
+        "createdBy.name",
         "updatedBy.id",
-        "updatedBy.email",
+        "updatedBy.name",
       ])
       .orderBy("group.createdAt", "DESC");
 
@@ -416,9 +416,9 @@ export class GroupsService {
 
     const group = await this.groupRepo
       .createQueryBuilder("group")
-      .leftJoinAndSelect("group.createdBy", "createdBy")
-      .leftJoinAndSelect("group.updatedBy", "updatedBy")
-      .leftJoinAndSelect("group.farm", "farm")
+      .leftJoin("group.createdBy", "createdBy")
+      .leftJoin("group.updatedBy", "updatedBy")
+      .leftJoin("group.farm", "farm")
       .where("group.id = :groupId", { groupId })
       .andWhere("group.deletedAt IS NULL")
       .select([
@@ -428,21 +428,22 @@ export class GroupsService {
         "group.isActive",
         "group.createdAt",
         "group.updatedAt",
-        "createdBy.id",
-        "createdBy.email",
-        "updatedBy.id",
-        "updatedBy.email",
-        "farm.id",
-        "farm.farmName",
       ])
-      .getOne();
+      .addSelect("createdBy.id", "createdBy_id")
+      .addSelect("createdBy.name", "createdBy_name")
+      .addSelect("updatedBy.id", "updatedBy_id")
+      .addSelect("updatedBy.name", "updatedBy_name")
+      .addSelect("farm.id", "farm_id")
+      .addSelect("farm.farmName", "farm_farmName")
+      .getRawOne();
 
     if (!group) {
       throw new NotFoundException("Group not found");
     }
 
     // Check if group belongs to user's current farm
-    if (group.farm.id !== farmId) {
+    const farmIdFromRaw = group.farm_id;
+    if (farmIdFromRaw !== farmId) {
       throw new BadRequestException(
         "Group does not belong to your current farm",
       );
@@ -506,10 +507,41 @@ export class GroupsService {
       averageAge = sum / ages.length;
     }
 
+    // Transform raw result to structured object
+    const transformedGroup = {
+      id: group.group_id || group.id,
+      name: group.group_name || group.name,
+      description: group.group_description || group.description,
+      isActive:
+        group.group_isActive !== undefined
+          ? group.group_isActive
+          : group.isActive,
+      createdAt: group.group_createdAt || group.createdAt,
+      updatedAt: group.group_updatedAt || group.updatedAt,
+      farm: group.farm_id
+        ? {
+            id: group.farm_id,
+            farmName: group.farm_farmName,
+          }
+        : null,
+      createdBy: group.createdBy_id
+        ? {
+            id: group.createdBy_id,
+            name: group.createdBy_name,
+          }
+        : null,
+      updatedBy: group.updatedBy_id
+        ? {
+            id: group.updatedBy_id,
+            name: group.updatedBy_name,
+          }
+        : null,
+    };
+
     return {
       message: "Group details fetched successfully",
       data: {
-        ...group,
+        ...transformedGroup,
         animalCount: animalGroups.length,
         averageWeight:
           averageWeight !== null ? Number(averageWeight.toFixed(2)) : null,
@@ -553,11 +585,10 @@ export class GroupsService {
       updatedBy: user,
     });
 
-    const savedGroup = await this.groupRepo.save(group);
+    await this.groupRepo.save(group);
 
     return {
       message: "Group created successfully",
-      data: savedGroup,
     };
   }
 
@@ -608,11 +639,10 @@ export class GroupsService {
     }
     group.updatedBy = user;
 
-    const updatedGroup = await this.groupRepo.save(group);
+    await this.groupRepo.save(group);
 
     return {
       message: "Group updated successfully",
-      data: updatedGroup,
     };
   }
 
