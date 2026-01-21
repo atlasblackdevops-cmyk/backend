@@ -136,10 +136,16 @@ export class EquipmentService {
     // Transform to include only required fields
     const transformedEquipment = equipment.map(transformEquipment);
 
+    // Convert photo paths to presigned URLs
+    const equipmentWithUrls = await this.s3Service.attachPresignedUrlsToMany(
+      transformedEquipment,
+      ["photo"],
+    );
+
     return {
       message: "Equipment fetched successfully",
       data: {
-        equipment: transformedEquipment,
+        equipment: equipmentWithUrls,
         pagination: {
           page,
           limit,
@@ -185,10 +191,17 @@ export class EquipmentService {
       ? transformEquipment(equipment)
       : null;
 
+    // Convert photo path to presigned URL
+    const equipmentWithUrl = transformedEquipment
+      ? await this.s3Service.attachPresignedUrls(transformedEquipment, [
+          "photo",
+        ])
+      : null;
+
     return {
       message: "Equipment details fetched successfully",
       data: {
-        equipment: transformedEquipment,
+        equipment: equipmentWithUrl,
       },
     };
   }

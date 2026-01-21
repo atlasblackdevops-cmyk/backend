@@ -189,10 +189,16 @@ export class AnimalsService {
     const total = await qb.getCount();
     const animals = await qb.skip(skip).take(limit).getMany();
 
+    // Convert photo paths to presigned URLs
+    const animalsWithUrls = await this.s3Service.attachPresignedUrlsToMany(
+      animals,
+      ["photo"],
+    );
+
     return {
       message: "Animals fetched successfully",
       data: {
-        animals,
+        animals: animalsWithUrls,
         pagination: {
           page,
           limit,
@@ -233,10 +239,15 @@ export class AnimalsService {
       throw new NotFoundException("Animal not found");
     }
 
+    // Convert photo path to presigned URL
+    const animalWithUrl = await this.s3Service.attachPresignedUrls(animal, [
+      "photo",
+    ]);
+
     return {
       message: "Animal details fetched successfully",
       data: {
-        animal,
+        animal: animalWithUrl,
       },
     };
   }
