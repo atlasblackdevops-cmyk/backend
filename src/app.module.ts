@@ -7,6 +7,7 @@ import { AccessModule } from "./modules/access/access.module";
 import { AnimalsModule } from "./modules/animals/animals.module";
 import { AuthModule } from "./modules/auth/auth.module";
 import { CropHealthNotesModule } from "./modules/crop-health-notes/crop-health-notes.module";
+import { EquipmentModule } from "./modules/equipment/equipment.module";
 import { FarmModule } from "./modules/farm/farm.module";
 import { FertilizerModule } from "./modules/fertilizer/fertilizer.module";
 import { FieldsModule } from "./modules/fields/fields.module";
@@ -38,6 +39,7 @@ import { UsersModule } from "./modules/users/users.module";
     CropHealthNotesModule,
     SubscriptionModule,
     FinanceModule,
+    EquipmentModule,
   ],
   controllers: [AppController],
   providers: [AppService],
