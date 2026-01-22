@@ -5,6 +5,7 @@ export enum PermissionModule {
   FINANCE = "FINANCE",
   REPORTS = "REPORTS",
   SETTINGS = "SETTINGS",
+  MARKETPLACE = "MARKETPLACE",
 }
 
 export enum PermissionAction {

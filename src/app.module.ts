@@ -15,6 +15,7 @@ import { FinanceModule } from "./modules/finance/finance.module";
 import { GlobalModule } from "./modules/global/global.module";
 import { HarvestsModule } from "./modules/harvests/harvests.module";
 import { IrrigationModule } from "./modules/irrigation/irrigation.module";
+import { MarketplaceModule } from "./modules/marketplace/marketplace.module";
 import { PlantingsModule } from "./modules/plantings/plantings.module";
 import { SharedModule } from "./modules/shared/shared.module";
 import { SubscriptionModule } from "./modules/subscription/subscription.module";
@@ -40,6 +41,7 @@ import { UsersModule } from "./modules/users/users.module";
     SubscriptionModule,
     FinanceModule,
     EquipmentModule,
+    MarketplaceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
