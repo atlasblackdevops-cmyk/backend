@@ -563,7 +563,11 @@ export class ListingsController {
                     type: "object",
                     properties: {
                       id: { type: "string", format: "uuid" },
-                      name: { type: "string", nullable: true, description: "Seller name" },
+                      name: {
+                        type: "string",
+                        nullable: true,
+                        description: "Seller name",
+                      },
                     },
                   },
                   createdAt: { type: "string", format: "date-time" },

@@ -175,9 +175,7 @@ export class ListingsService {
       listings.map(async (listing) => {
         const images = await Promise.all(
           (listing.images || []).map(async (img) => {
-            const imageUrl = await this.s3Service.getPresignedUrl(
-              img.imageKey,
-            );
+            const imageUrl = await this.s3Service.getPresignedUrl(img.imageKey);
             return {
               id: img.id,
               imageKey: img.imageKey,
