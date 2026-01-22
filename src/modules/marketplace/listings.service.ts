@@ -170,25 +170,47 @@ export class ListingsService {
     const total = await qb.getCount();
     const listings = await qb.skip(skip).take(limit).getMany();
 
-    // Attach presigned URLs to images
+    // Attach presigned URLs to images and format response
     const listingsWithUrls = await Promise.all(
       listings.map(async (listing) => {
-        const listingData = {
-          ...listing,
-          images: await Promise.all(
-            (listing.images || []).map(async (img) => {
-              const imageUrl = await this.s3Service.getPresignedUrl(
-                img.imageKey,
-              );
-              return {
-                id: img.id,
-                imageKey: img.imageKey,
-                imageUrl,
-              };
-            }),
-          ),
+        const images = await Promise.all(
+          (listing.images || []).map(async (img) => {
+            const imageUrl = await this.s3Service.getPresignedUrl(
+              img.imageKey,
+            );
+            return {
+              id: img.id,
+              imageKey: img.imageKey,
+              imageUrl,
+            };
+          }),
+        );
+
+        return {
+          id: listing.id,
+          title: listing.title,
+          description: listing.description,
+          category: listing.category,
+          price: listing.price,
+          quantityAvailable: listing.quantityAvailable,
+          quantityUnit: listing.quantityUnit,
+          city: listing.city,
+          state: listing.state,
+          country: listing.country,
+          shippingAvailable: listing.shippingAvailable,
+          status: listing.status,
+          images,
+          farm: {
+            id: listing.farm.id,
+            name: listing.farm.farmName,
+          },
+          seller: {
+            id: listing.seller.id,
+            name: listing.seller.name,
+          },
+          createdAt: listing.createdAt,
+          updatedAt: listing.updatedAt,
         };
-        return listingData;
       }),
     );
 
@@ -638,6 +660,7 @@ export class ListingsService {
           state: listing.state,
           country: listing.country,
           shippingAvailable: listing.shippingAvailable,
+          status: listing.status,
           images: imagesWithUrls,
           farm: {
             id: listing.farm.id,

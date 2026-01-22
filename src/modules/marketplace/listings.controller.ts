@@ -43,10 +43,14 @@ export class ListingsController {
   // ========== BROWSE ENDPOINTS (Public Marketplace) ==========
 
   @Get("browse")
+  @RequirePermission({
+    module: PermissionModule.MARKETPLACE,
+    action: PermissionAction.LISTING,
+  })
   @ApiOperation({
     summary: "Browse marketplace listings",
     description:
-      "Browse all active marketplace listings from other farms. Excludes listings from the user's own farm. Supports filtering by category, location, and distance. Requires authentication to identify user's farm.",
+      "Browse all active marketplace listings from other farms. Excludes listings from the user's own farm. Supports filtering by category, location, and distance. Requires MARKETPLACE:LISTING permission.",
   })
   @ApiResponse({
     status: 200,
@@ -106,6 +110,37 @@ export class ListingsController {
       },
     },
   })
+  @ApiResponse({
+    status: 401,
+    description: "Unauthorized - Authentication required",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: false },
+        statusCode: { type: "number", example: 401 },
+        message: {
+          type: "string",
+          example: "Unauthorized",
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 403,
+    description:
+      "Forbidden - User does not have MARKETPLACE:LISTING permission",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: false },
+        statusCode: { type: "number", example: 403 },
+        message: {
+          type: "string",
+          example: "Permission denied: MARKETPLACE:LISTING is required",
+        },
+      },
+    },
+  })
   async browseListings(
     @AuthUser() user: any,
     @Query() query: BrowseListingsDto,
@@ -117,10 +152,14 @@ export class ListingsController {
   }
 
   @Get("browse/:listingId")
+  @RequirePermission({
+    module: PermissionModule.MARKETPLACE,
+    action: PermissionAction.LISTING,
+  })
   @ApiOperation({
     summary: "Get marketplace listing details for browsing",
     description:
-      "Retrieves detailed information about a specific active marketplace listing from other farms. Cannot access listings from your own farm. Requires authentication.",
+      "Retrieves detailed information about a specific active marketplace listing from other farms. Cannot access listings from your own farm. Requires MARKETPLACE:LISTING permission.",
   })
   @ApiResponse({
     status: 200,
@@ -151,6 +190,7 @@ export class ListingsController {
                 state: { type: "string", nullable: true },
                 country: { type: "string", nullable: true },
                 shippingAvailable: { type: "boolean" },
+                status: { type: "string", example: "active" },
                 images: {
                   type: "array",
                   items: {
@@ -192,9 +232,24 @@ export class ListingsController {
     },
   })
   @ApiResponse({
+    status: 401,
+    description: "Unauthorized - Authentication required",
+    schema: {
+      type: "object",
+      properties: {
+        success: { type: "boolean", example: false },
+        statusCode: { type: "number", example: 401 },
+        message: {
+          type: "string",
+          example: "Unauthorized",
+        },
+      },
+    },
+  })
+  @ApiResponse({
     status: 403,
     description:
-      "Forbidden - Cannot browse your own farm's listings or listing is not active",
+      "Forbidden - Missing MARKETPLACE:LISTING permission, cannot browse your own farm's listings, or listing is not active",
     schema: {
       type: "object",
       properties: {
@@ -495,6 +550,20 @@ export class ListingsController {
                           example: "https://presigned-s3-url...",
                         },
                       },
+                    },
+                  },
+                  farm: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string", format: "uuid" },
+                      name: { type: "string", description: "Farm name" },
+                    },
+                  },
+                  seller: {
+                    type: "object",
+                    properties: {
+                      id: { type: "string", format: "uuid" },
+                      name: { type: "string", nullable: true, description: "Seller name" },
                     },
                   },
                   createdAt: { type: "string", format: "date-time" },
