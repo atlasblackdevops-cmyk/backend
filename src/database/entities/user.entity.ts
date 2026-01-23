@@ -11,6 +11,8 @@ import {
   UpdateDateColumn,
 } from "typeorm";
 import { Farm } from "./farm.entity";
+import { ReferralPointsTransaction } from "./referral-points-transaction.entity";
+import { Referral } from "./referral.entity";
 import { Role } from "./role.entity";
 import { UserPermission } from "./user-permission.entity";
 
@@ -34,12 +36,35 @@ export class User {
   @JoinColumn({ name: "role_id" })
   role: Role;
 
-  @Column({ name: "referral_code", type: "varchar", nullable: true })
-  referralCode: string | null;
+  @Index({ unique: true })
+  @Column({ name: "referral_code", type: "varchar", nullable: false })
+  referralCode: string;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: "referred_by" })
+  @Index()
   referredBy: User | null;
+
+  @Column({
+    name: "total_referral_points",
+    type: "integer",
+    default: 0,
+  })
+  totalReferralPoints: number;
+
+  @Column({
+    name: "available_referral_points",
+    type: "integer",
+    default: 0,
+  })
+  availableReferralPoints: number;
+
+  @Column({
+    name: "referral_code_generated_at",
+    type: "timestamp with time zone",
+    nullable: true,
+  })
+  referralCodeGeneratedAt: Date | null;
 
   @Column({ name: "email_verified", type: "boolean", default: false })
   emailVerified: boolean;
@@ -92,4 +117,13 @@ export class User {
 
   @OneToMany(() => UserPermission, (userPermission) => userPermission.user)
   userPermissions: UserPermission[];
+
+  @OneToMany(() => Referral, (referral) => referral.referredBy)
+  referralsMade: Referral[];
+
+  @OneToMany(() => Referral, (referral) => referral.referredTo)
+  referralsReceived: Referral[];
+
+  @OneToMany(() => ReferralPointsTransaction, (transaction) => transaction.user)
+  referralPointsTransactions: ReferralPointsTransaction[];
 }
