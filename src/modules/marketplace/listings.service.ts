@@ -476,6 +476,7 @@ export class ListingsService {
     const qb = this.listingRepo
       .createQueryBuilder("listing")
       .leftJoinAndSelect("listing.farm", "farm")
+      .leftJoinAndSelect("farm.owner", "owner")
       .leftJoinAndSelect("listing.seller", "seller")
       .leftJoinAndSelect("listing.images", "images")
       .where("listing.status = :status", {
@@ -585,6 +586,7 @@ export class ListingsService {
           farm: {
             id: listing.farm.id,
             farmName: listing.farm.farmName,
+            ownerEmail: listing.farm.owner?.email,
           },
         };
       }),
@@ -608,6 +610,7 @@ export class ListingsService {
     const listing = await this.listingRepo
       .createQueryBuilder("listing")
       .leftJoinAndSelect("listing.farm", "farm")
+      .leftJoinAndSelect("farm.owner", "owner")
       .leftJoinAndSelect("listing.seller", "seller")
       .leftJoinAndSelect("listing.images", "images")
       .where("listing.id = :listingId", { listingId })
@@ -654,9 +657,10 @@ export class ListingsService {
           price: listing.price,
           quantityAvailable: listing.quantityAvailable,
           quantityUnit: listing.quantityUnit,
-          city: listing.city,
-          state: listing.state,
-          country: listing.country,
+          // Use farm's location as fallback if listing location is null
+          city: listing.city ?? listing.farm.city,
+          state: listing.state ?? listing.farm.state,
+          country: listing.country ?? listing.farm.country,
           shippingAvailable: listing.shippingAvailable,
           status: listing.status,
           images: imagesWithUrls,
@@ -666,6 +670,7 @@ export class ListingsService {
             city: listing.farm.city,
             state: listing.farm.state,
             country: listing.farm.country,
+            ownerEmail: listing.farm.owner?.email,
           },
           seller: {
             id: listing.seller.id,

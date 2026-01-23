@@ -91,6 +91,10 @@ export class ListingsController {
                     properties: {
                       id: { type: "string", format: "uuid" },
                       farmName: { type: "string" },
+                      ownerEmail: {
+                        type: "string",
+                        description: "Farm owner's email",
+                      },
                     },
                   },
                 },
@@ -213,6 +217,10 @@ export class ListingsController {
                     city: { type: "string", nullable: true },
                     state: { type: "string", nullable: true },
                     country: { type: "string", nullable: true },
+                    ownerEmail: {
+                      type: "string",
+                      description: "Farm owner's email",
+                    },
                   },
                 },
                 seller: {
