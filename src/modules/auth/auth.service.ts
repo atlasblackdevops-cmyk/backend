@@ -39,7 +39,8 @@ export class AuthService {
     private readonly userPermissions: Repository<UserPermission>,
     @InjectRepository(OwnerGroupSubscription)
     private readonly subscriptions: Repository<OwnerGroupSubscription>,
-    @InjectRepository(Referral) private readonly referrals: Repository<Referral>,
+    @InjectRepository(Referral)
+    private readonly referrals: Repository<Referral>,
     private readonly bcrypt: BcryptService,
     private readonly jwt: JwtService,
     private readonly authConfig: AuthConfig,
@@ -81,7 +82,10 @@ export class AuthService {
     }
 
     // Fallback: use UUID-based code if too many collisions
-    const uuidCode = randomUUID().replace(/-/g, "").substring(0, 8).toUpperCase();
+    const uuidCode = randomUUID()
+      .replace(/-/g, "")
+      .substring(0, 8)
+      .toUpperCase();
     return uuidCode;
   }
 
@@ -475,10 +479,12 @@ export class AuthService {
       WHERE referred_by = $1
       AND deleted_at IS NULL
     `;
-    
-    const referralStats = await this.referrals.query(referralStatsQuery, [user.id]);
+
+    const referralStats = await this.referrals.query(referralStatsQuery, [
+      user.id,
+    ]);
     const stats = referralStats[0] || {};
-    
+
     const totalReferrals = parseInt(stats.totalReferrals || "0", 10);
     const successfulReferrals = parseInt(stats.successfulReferrals || "0", 10);
     const pendingReferrals = parseInt(stats.pendingReferrals || "0", 10);

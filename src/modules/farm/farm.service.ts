@@ -91,7 +91,7 @@ export class FarmService {
 
     // Check if this is the user's first farm (sign-up completion)
     const isFirstFarm = !owner.currentFarm;
-    
+
     if (isFirstFarm) {
       owner.currentFarm = farm;
       await this.userRepo.save(owner);

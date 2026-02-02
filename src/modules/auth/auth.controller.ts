@@ -53,7 +53,8 @@ export class AuthController {
                 referralCode: {
                   type: "string",
                   example: "ABC123XY",
-                  description: "Auto-generated unique referral code for the new user",
+                  description:
+                    "Auto-generated unique referral code for the new user",
                 },
               },
             },
@@ -174,7 +175,8 @@ export class AuthController {
                 referralCode: {
                   type: "string",
                   example: "ABC123XY",
-                  description: "Auto-generated unique referral code for new users",
+                  description:
+                    "Auto-generated unique referral code for new users",
                 },
               },
             },
