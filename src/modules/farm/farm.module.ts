@@ -2,13 +2,14 @@ import { Module } from "@nestjs/common";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { FarmMember } from "../../database/entities/farm-member.entity";
 import { Farm } from "../../database/entities/farm.entity";
+import { Referral } from "../../database/entities/referral.entity";
 import { Role } from "../../database/entities/role.entity";
 import { User } from "../../database/entities/user.entity";
 import { FarmController } from "./farm.controller";
 import { FarmService } from "./farm.service";
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Farm, User, Role, FarmMember])],
+  imports: [TypeOrmModule.forFeature([Farm, User, Role, FarmMember, Referral])],
   controllers: [FarmController],
   providers: [FarmService],
   exports: [FarmService],

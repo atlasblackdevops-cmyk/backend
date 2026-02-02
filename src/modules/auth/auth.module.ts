@@ -5,6 +5,7 @@ import { AuthConfig } from "../../config/auth.config";
 import { GoogleConfig } from "../../config/google.config";
 import { Farm } from "../../database/entities/farm.entity";
 import { OwnerGroupSubscription } from "../../database/entities/owner-group-subscription.entity";
+import { Referral } from "../../database/entities/referral.entity";
 import { Role } from "../../database/entities/role.entity";
 import { UserPermission } from "../../database/entities/user-permission.entity";
 import { User } from "../../database/entities/user.entity";
@@ -22,6 +23,7 @@ import { JwtAccessStrategy } from "./strategies/jwt-access.strategy";
       Farm,
       UserPermission,
       OwnerGroupSubscription,
+      Referral,
     ]),
     JwtModule.registerAsync({
       inject: [AuthConfig],

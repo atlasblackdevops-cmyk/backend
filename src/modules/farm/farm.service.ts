@@ -8,6 +8,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { FarmMember } from "../../database/entities/farm-member.entity";
 import { Farm } from "../../database/entities/farm.entity";
+import { Referral } from "../../database/entities/referral.entity";
 import { Role } from "../../database/entities/role.entity";
 import { User } from "../../database/entities/user.entity";
 import { FarmRole } from "../../enums/user.enum";
@@ -23,6 +24,8 @@ export class FarmService {
     @InjectRepository(Role) private readonly roleRepo: Repository<Role>,
     @InjectRepository(FarmMember)
     private readonly farmMemberRepo: Repository<FarmMember>,
+    @InjectRepository(Referral)
+    private readonly referralRepo: Repository<Referral>,
     private readonly s3Service: S3Service,
   ) {}
 
@@ -86,9 +89,30 @@ export class FarmService {
       }),
     );
 
-    if (!owner.currentFarm) {
+    // Check if this is the user's first farm (sign-up completion)
+    const isFirstFarm = !owner.currentFarm;
+    
+    if (isFirstFarm) {
       owner.currentFarm = farm;
       await this.userRepo.save(owner);
+
+      // Mark referral as completed if user was referred
+      // This means: user signed up with referral code, purchased plan, and created first farm
+      const referral = await this.referralRepo.findOne({
+        where: {
+          referredTo: { id: ownerId },
+          status: "pending",
+        },
+        relations: ["referredBy"],
+      });
+
+      if (referral) {
+        referral.status = "completed";
+        referral.pointsAwardedAt = new Date();
+        // Note: Points awarding logic will be added in next sprint
+        // For now, just mark as completed
+        await this.referralRepo.save(referral);
+      }
     }
 
     // Return farm with presigned URL for logo

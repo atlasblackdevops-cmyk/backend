@@ -27,7 +27,11 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post("register")
-  @ApiOperation({ summary: "Register a new user" })
+  @ApiOperation({
+    summary: "Register a new user",
+    description:
+      "Register a new user account. Optionally accepts a referral code to track who referred this user.",
+  })
   @ApiResponse({
     status: 201,
     description: "User registered successfully",
@@ -40,7 +44,19 @@ export class AuthController {
         data: {
           type: "object",
           properties: {
-            user: { type: "object" },
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                email: { type: "string", example: "user@example.com" },
+                name: { type: "string", nullable: true },
+                referralCode: {
+                  type: "string",
+                  example: "ABC123XY",
+                  description: "Auto-generated unique referral code for the new user",
+                },
+              },
+            },
             accessToken: { type: "string" },
             refreshToken: { type: "string" },
             isSubscribed: {
@@ -56,7 +72,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: 400,
-    description: "Bad request - Email already exists",
+    description: "Bad request - Email already exists or invalid referral code",
   })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
@@ -132,7 +148,11 @@ export class AuthController {
   }
 
   @Post("google")
-  @ApiOperation({ summary: "Login or register with Google" })
+  @ApiOperation({
+    summary: "Login or register with Google",
+    description:
+      "Login or register using Google OAuth. Optionally accepts a referral code to track who referred this user (useful when referral code is stored before Google OAuth redirect).",
+  })
   @ApiResponse({
     status: 200,
     description: "User logged in successfully via Google",
@@ -145,7 +165,19 @@ export class AuthController {
         data: {
           type: "object",
           properties: {
-            user: { type: "object" },
+            user: {
+              type: "object",
+              properties: {
+                id: { type: "string", format: "uuid" },
+                email: { type: "string", example: "user@example.com" },
+                name: { type: "string", nullable: true },
+                referralCode: {
+                  type: "string",
+                  example: "ABC123XY",
+                  description: "Auto-generated unique referral code for new users",
+                },
+              },
+            },
             accessToken: { type: "string" },
             refreshToken: { type: "string" },
             isSubscribed: {
@@ -159,8 +191,12 @@ export class AuthController {
       },
     },
   })
+  @ApiResponse({
+    status: 400,
+    description: "Bad request - Invalid Google token or invalid referral code",
+  })
   google(@Body() dto: GoogleSignInDto) {
-    return this.authService.googleSignIn(dto.idToken);
+    return this.authService.googleSignIn(dto.idToken, dto.referralCode);
   }
 
   @Post("logout")
@@ -252,6 +288,36 @@ export class AuthController {
             },
             createdAt: { type: "string", format: "date-time" },
             updatedAt: { type: "string", format: "date-time" },
+            referralCode: {
+              type: "string",
+              example: "ABC123XY",
+              description: "User's unique referral code",
+            },
+            totalReferralPoints: {
+              type: "number",
+              example: 500,
+              description: "Total referral points earned",
+            },
+            availableReferralPoints: {
+              type: "number",
+              example: 300,
+              description: "Available referral points for redemption",
+            },
+            totalReferrals: {
+              type: "number",
+              example: 5,
+              description: "Total number of referrals made",
+            },
+            successfulReferrals: {
+              type: "number",
+              example: 3,
+              description: "Number of successful/completed referrals",
+            },
+            pendingReferrals: {
+              type: "number",
+              example: 2,
+              description: "Number of pending referrals",
+            },
             isSubscribed: {
               type: "boolean",
               example: true,

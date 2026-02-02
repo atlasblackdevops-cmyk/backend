@@ -29,4 +29,12 @@ export class RegisterDto {
   @IsOptional()
   @IsString({ message: "Mobile must be a string" })
   mobile?: string;
+
+  @ApiPropertyOptional({
+    description: "Optional referral code if user was referred by someone",
+    example: "ABC123XY",
+  })
+  @IsOptional()
+  @IsString({ message: "Referral code must be a string" })
+  referralCode?: string;
 }
